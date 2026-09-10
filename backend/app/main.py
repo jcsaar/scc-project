@@ -3,8 +3,12 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from app.api.ledger import create_ledger_router
+from app.api.policy import PolicyStore, create_policy_router
 from app.api.sessions import create_sessions_router
 from app.core.credential_vault import CredentialVault
+from app.domain.policies import PolicyLoader
+from app.ledger.repository import ExposureRepository
 from app.orchestration.state_machine import TrustSplitWorkflow
 from app.privacy.broker import PrivacyBroker
 from app.private_data.repository import SyntheticPrivateRepository
@@ -15,9 +19,14 @@ from app.providers.local.mock import MockLocalModelProvider
 def create_app(
     workflow: TrustSplitWorkflow | None = None,
     credential_vault: CredentialVault | None = None,
+    exposure_repository: ExposureRepository | None = None,
 ) -> FastAPI:
     app = FastAPI(title="TrustSplit AI", version="0.1.0")
     credential_vault = credential_vault or CredentialVault()
+    exposure_repository = exposure_repository or ExposureRepository("sqlite://")
+    exposure_repository.initialize()
+    policy_path = Path(__file__).resolve().parents[2] / "policy" / "default.yaml"
+    policy_store = PolicyStore(PolicyLoader.load(policy_path))
 
     if workflow is None:
         dataset_path = (
@@ -45,6 +54,8 @@ def create_app(
         }
 
     app.include_router(create_sessions_router(workflow, credential_vault))
+    app.include_router(create_ledger_router(exposure_repository))
+    app.include_router(create_policy_router(policy_store))
     return app
 
 

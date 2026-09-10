@@ -1,6 +1,8 @@
+import json
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Response, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from app.core.credential_vault import CredentialVault
@@ -45,6 +47,7 @@ def create_sessions_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     sessions: dict[str, SessionResponse] = {}
+    results: dict[str, WorkflowResult] = {}
 
     @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
     def create_session(request: CreateSessionRequest) -> SessionResponse:
@@ -57,11 +60,33 @@ def create_sessions_router(
         session = sessions.get(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Session not found")
-        return await workflow.run(
+        result = await workflow.run(
             prompt=request.prompt,
             project_id=session.project_id,
             trust_zone_id=session.trust_zone_id,
         )
+        results[session_id] = result
+        return result
+
+    @router.get("/{session_id}")
+    def session_status(session_id: str) -> dict[str, str]:
+        if session_id not in sessions:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {"id": session_id, "status": "complete" if session_id in results else "ready"}
+
+    @router.get("/{session_id}/events")
+    def session_events(session_id: str, after_sequence: int = 0) -> StreamingResponse:
+        result = results.get(session_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Workflow result not found")
+
+        def stream():
+            for item in result.events:
+                if item.sequence > after_sequence:
+                    data = json.dumps(item.model_dump(mode="json"), separators=(",", ":"))
+                    yield f"id: {item.sequence}\ndata: {data}\n\n"
+
+        return StreamingResponse(stream(), media_type="text/event-stream")
 
     @router.post("/{session_id}/provider/connect", response_model=ProviderConnectionResponse)
     def connect_provider(

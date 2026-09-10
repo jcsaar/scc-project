@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from pydantic import Field
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from app.domain.disclosures import StrictFrozenModel
 from app.ledger.models import Base, ExposureClaimRow, ExposureEventRow, SessionRow
@@ -53,7 +54,8 @@ class ExposureRepository:
     }
 
     def __init__(self, database_url: str) -> None:
-        self._engine = create_engine(database_url)
+        options = {"poolclass": StaticPool} if database_url == "sqlite://" else {}
+        self._engine = create_engine(database_url, **options)
         if database_url.startswith("sqlite"):
             event.listen(self._engine, "connect", self._configure_sqlite)
 
