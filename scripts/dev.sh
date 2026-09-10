@@ -24,8 +24,10 @@ TRUSTSPLIT_DATABASE_URL=sqlite:///trustsplit.db \
   >"$RUN_LOGS/migration.log" 2>&1
 TRUSTSPLIT_DATABASE_URL=sqlite:///trustsplit.db \
   TRUSTSPLIT_SCHEMA_MANAGED=alembic \
+  TRUSTSPLIT_DEMO_DELAY_SCALE=1 \
+  TRUSTSPLIT_DEMO_PRIVATE_TRACE=1 \
   "$PROJECT_ROOT/backend/.venv/bin/python" -m uvicorn app.main:app \
-  --host 127.0.0.1 --port "$BACKEND_PORT" >"$RUN_LOGS/backend.log" 2>&1 &
+  --host 127.0.0.1 --port "$BACKEND_PORT" &
 BACKEND_PID=$!
 
 cd "$PROJECT_ROOT/frontend"

@@ -1,5 +1,6 @@
 from app.domain.disclosures import BrokerDecision, DecisionKind, PrecisionLevel
 from app.domain.workflow import WorkflowEvent, WorkflowState
+from app.orchestration.progress import DemoProgressEmitter
 from app.orchestration.state_machine import (
     CloudPayloadEvidence,
     DisclosureEvidence,
@@ -24,10 +25,15 @@ class DemoModeRunner:
         project_id: str,
         trust_zone_id: str,
         session_id: str | None = None,
+        progress_emitter: DemoProgressEmitter | None = None,
     ) -> WorkflowResult:
         if mode == "trustsplit":
             result = await self._trustsplit.run(
-                prompt, project_id, trust_zone_id, session_id=session_id
+                prompt,
+                project_id,
+                trust_zone_id,
+                session_id=session_id,
+                progress_emitter=progress_emitter,
             )
             return result.model_copy(
                 update={

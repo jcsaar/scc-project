@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   BookOpenCheck,
@@ -22,7 +22,8 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { getLedger, getPolicy, resetDemo, runScenario, runWorkflow, updatePolicy } from "./api";
+import { getLedger, getPolicy, resetDemo, runScenario, streamWorkflow, updatePolicy } from "./api";
+import { ThinkingTrace } from "./components/ThinkingTrace";
 import type {
   DemoMode,
   LedgerClaim,
@@ -30,6 +31,7 @@ import type {
   ScenarioResult,
   ViewName,
   WorkflowResult,
+  ProgressEvent,
 } from "./types";
 import "./styles.css";
 
@@ -114,17 +116,45 @@ function ChatView({ result, onResult }: { result: WorkflowResult; onResult: (val
   const [employee, setEmployee] = useState("alice");
   const [status, setStatus] = useState<"idle" | "running" | "error">("idle");
   const [error, setError] = useState("");
+  const [progressEvents, setProgressEvents] = useState<ProgressEvent[]>([]);
+  const [displayedAnswer, setDisplayedAnswer] = useState(result.final_answer);
+  const firstAnswer = useRef(true);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (firstAnswer.current) {
+      firstAnswer.current = false;
+      return;
+    }
+    setDisplayedAnswer("");
+    let cursor = 0;
+    const timer = window.setInterval(() => {
+      cursor = Math.min(result.final_answer.length, cursor + 36);
+      setDisplayedAnswer(result.final_answer.slice(0, cursor));
+      if (cursor >= result.final_answer.length) window.clearInterval(timer);
+    }, 35);
+    return () => window.clearInterval(timer);
+  }, [result.final_answer]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setStatus("running");
     setError("");
+    setProgressEvents([]);
+    abortRef.current = new AbortController();
     try {
-      onResult(await runWorkflow({ employeeId: employee, mode, provider, prompt }));
+      await streamWorkflow(
+        { employeeId: employee, mode, provider, prompt },
+        { onProgress: (event) => setProgressEvents((current) => [...current, event]), onResult },
+        abortRef.current.signal,
+      );
       setStatus("idle");
     } catch (caught) {
       setStatus("error");
       setError(caught instanceof Error ? caught.message : "The run could not be completed.");
+    }
+    finally {
+      abortRef.current = null;
     }
   }
 
@@ -136,7 +166,8 @@ function ChatView({ result, onResult }: { result: WorkflowResult; onResult: (val
           <ZoneBadge kind="local">Local Private Zone</ZoneBadge>
         </div>
         <div className="message employee-message"><UserRound size={17} /><div><b>Employee prompt</b><p>{prompt}</p></div></div>
-        <div className="message answer-message"><ShieldCheck size={17} /><div><b>Locally verified response</b><p>{result.final_answer}</p></div></div>
+        <ThinkingTrace events={progressEvents} status={status} />
+        <div className="message answer-message"><ShieldCheck size={17} /><div><b>Locally verified response</b><p>{displayedAnswer}</p></div></div>
         <form onSubmit={submit} className="composer">
           <label htmlFor="prompt">Private prompt</label>
           <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
@@ -144,7 +175,8 @@ function ChatView({ result, onResult }: { result: WorkflowResult; onResult: (val
             <label>Employee<select value={employee} onChange={(event) => setEmployee(event.target.value)}><option value="alice">Alice</option><option value="bob">Bob</option><option value="charlie">Charlie</option><option value="dana">Dana</option></select></label>
             <label>Mode<select aria-label="Mode" value={mode} onChange={(event) => setMode(event.target.value as DemoMode)}><option value="trustsplit">TrustSplit</option><option value="cloud_only">Cloud Only</option><option value="local_only">Local Only</option><option value="basic_redaction">Basic Redaction</option></select></label>
             <label>Provider<select value={provider} onChange={(event) => setProvider(event.target.value)}><option value="company_cloud">Company Cloud</option><option value="personal_cloud">Personal Cloud</option></select></label>
-            <button className="primary-button" type="submit" disabled={status === "running"}><Play size={16} />{status === "running" ? "Mediating…" : "Run safely"}</button>
+          <button className="primary-button" type="submit" disabled={status === "running"}><Play size={16} />{status === "running" ? "Mediating…" : "Run safely"}</button>
+          {status === "running" && <button type="button" className="secondary-button" onClick={() => abortRef.current?.abort()}>Stop</button>}
           </div>
           {error && <p className="error-text" role="alert">{error}</p>}
         </form>

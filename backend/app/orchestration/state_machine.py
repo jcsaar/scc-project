@@ -1,3 +1,4 @@
+import json
 from threading import RLock
 
 import httpx
@@ -14,6 +15,7 @@ from app.domain.providers import ApprovedCloudPayload
 from app.domain.workflow import VerificationStatus, WorkflowEvent, WorkflowState
 from app.orchestration.events import EventRecorder
 from app.orchestration.oracle import LocalOracle
+from app.orchestration.progress import DemoProgressEmitter, PresentationClock, ProgressStage
 from app.orchestration.verifier import LocalVerifier
 from app.privacy.broker import BrokerContext, PrivacyBroker
 from app.private_data.repository import SyntheticPrivateRepository
@@ -97,15 +99,27 @@ class TrustSplitWorkflow:
         project_id: str,
         trust_zone_id: str,
         session_id: str | None = None,
+        progress_emitter: DemoProgressEmitter | None = None,
     ) -> WorkflowResult:
         events = EventRecorder()
+        progress = progress_emitter or DemoProgressEmitter(clock=PresentationClock(scale=0))
         outbound_payloads: list[CloudPayloadEvidence] = []
         egress_evidence: list[EgressEvidence] = []
         with self._config_lock:
             max_clarification_rounds = self._max_clarification_rounds
+        await progress.emit(
+            ProgressStage.LOCAL_READ,
+            "Reading your request locally…",
+            "Private prompt received inside the local zone.",
+        )
         events.emit(WorkflowState.RECEIVE_PROMPT, "employee", "Private prompt received locally.")
 
         context = self._private_repository.load_project(project_id)
+        await progress.emit(
+            ProgressStage.SENSITIVE_SCAN,
+            "Scanning for sensitive information…",
+            "Protected entities and exact source facts remain local.",
+        )
         events.emit(
             WorkflowState.LOCAL_ANALYSIS,
             "local_ai",
@@ -113,6 +127,12 @@ class TrustSplitWorkflow:
         )
 
         proposal = self._local_provider.analyse(prompt, context)
+        await progress.emit(
+            ProgressStage.SAFE_RECONSTRUCTION,
+            "Reconstructing a safe prompt…",
+            "A minimum-information representation was prepared.",
+            terminal_detail=self._reconstruction_detail(context, proposal),
+        )
         events.emit(
             WorkflowState.CREATE_SAFE_TASK,
             "local_ai",
@@ -130,6 +150,17 @@ class TrustSplitWorkflow:
             else None
         )
         evaluation = self._broker.evaluate(proposal, broker_context)
+        await progress.emit(
+            ProgressStage.PRIVACY_BORDER,
+            "Checking the zero-trust privacy border…",
+            f"Broker decision: {evaluation.decision.decision.value.upper()} with risk "
+            f"{evaluation.decision.risk_before} → {evaluation.decision.risk_after}.",
+            terminal_detail=(
+                f"Decision: {evaluation.decision.decision.value.upper()} | Risk: "
+                f"{evaluation.decision.risk_before} -> {evaluation.decision.risk_after} | "
+                f"Budget cost: {evaluation.decision.budget_cost}"
+            ),
+        )
         if not evaluation.approved_disclosures:
             egress_evidence.append(EgressEvidence(stage="initial", decision=evaluation.decision))
             events.emit(
@@ -143,6 +174,11 @@ class TrustSplitWorkflow:
                 "Disclosure denied; completed locally.",
             )
             events.emit(WorkflowState.FINAL, "local_ai", "Final local-only answer ready.")
+            await progress.emit(
+                ProgressStage.RETURN_RESPONSE,
+                "Sending the safe response to you…",
+                "Cloud transmission was blocked; a local fallback is ready.",
+            )
             return WorkflowResult(
                 final_answer=self._verifier.local_fallback(),
                 outbound_payload=None,
@@ -169,6 +205,15 @@ class TrustSplitWorkflow:
         egress_evidence.append(
             EgressEvidence(stage="initial", decision=evaluation.decision, payload=primary_evidence)
         )
+        await progress.emit(
+            ProgressStage.CLOUD_SEND,
+            "Sending approved context to Cloud AI…",
+            "Only the immutable broker-approved envelope will leave the device.",
+            terminal_detail=(
+                "[CLOUD PAYLOAD] "
+                + json.dumps(primary_evidence.model_dump(mode="json"), separators=(",", ":"))
+            ),
+        )
         try:
             recommendation = await self._cloud_provider.send(payload)
         except (httpx.TimeoutException, TimeoutError):
@@ -178,6 +223,11 @@ class TrustSplitWorkflow:
                 "Cloud provider unavailable; completed locally.",
             )
             events.emit(WorkflowState.FINAL, "local_ai", "Final local-only answer ready.")
+            await progress.emit(
+                ProgressStage.RETURN_RESPONSE,
+                "Sending the safe response to you…",
+                "Cloud was unavailable; a local fallback is ready.",
+            )
             return WorkflowResult(
                 final_answer=self._verifier.local_fallback(),
                 outbound_payload=primary_evidence,
@@ -193,6 +243,11 @@ class TrustSplitWorkflow:
             "cloud_ai",
             "The cloud reasoned only over the approved payload.",
         )
+        await progress.emit(
+            ProgressStage.CLOUD_REASONING,
+            "Cloud AI is reasoning…",
+            "Cloud reasoning is limited to the approved payload.",
+        )
 
         clarification_rounds = 0
         while recommendation.context_requests and clarification_rounds < max_clarification_rounds:
@@ -201,6 +256,12 @@ class TrustSplitWorkflow:
                 WorkflowState.CLOUD_REQUEST_CONTEXT,
                 "cloud_ai",
                 "The cloud requested additional private context.",
+            )
+            await progress.emit(
+                ProgressStage.CLOUD_REASONING,
+                "Cloud AI requested one privacy-safe clarification…",
+                "The local oracle will answer without releasing exact source facts.",
+                delay_ms=0,
             )
             try:
                 validate_cloud_context_request(request, self._request_limits)
@@ -257,6 +318,16 @@ class TrustSplitWorkflow:
                     payload=oracle_evidence,
                 )
             )
+            await progress.emit(
+                ProgressStage.CLOUD_SEND,
+                "Sending the approved clarification to Cloud AI…",
+                "Only the broker-approved Boolean answer is leaving the device.",
+                terminal_detail=(
+                    "[CLOUD PAYLOAD] "
+                    + json.dumps(oracle_evidence.model_dump(mode="json"), separators=(",", ":"))
+                ),
+                delay_ms=0,
+            )
             try:
                 recommendation = await self._cloud_provider.send(oracle_payload)
             except (httpx.TimeoutException, TimeoutError):
@@ -283,6 +354,11 @@ class TrustSplitWorkflow:
                 "The cloud continued using only the approved oracle answer.",
             )
 
+        await progress.emit(
+            ProgressStage.LOCAL_VERIFY,
+            "Verifying the response locally…",
+            "The recommendation is checked against hidden local constraints.",
+        )
         verification = self._local_provider.verify(recommendation, context)
         events.emit(
             WorkflowState.LOCAL_VERIFY,
@@ -366,6 +442,11 @@ class TrustSplitWorkflow:
             final_verification_status = VerificationStatus.ACCEPTED.value
 
         events.emit(WorkflowState.FINAL, "local_ai", "Final locally verified answer ready.")
+        await progress.emit(
+            ProgressStage.RETURN_RESPONSE,
+            "Sending the verified response to you…",
+            "The locally verified answer is ready for the chat.",
+        )
         return WorkflowResult(
             final_answer=final_answer,
             outbound_payload=primary_evidence,
@@ -375,4 +456,19 @@ class TrustSplitWorkflow:
             events=events.events,
             final_risk=max(item.decision.risk_after for item in egress_evidence),
             verification_status=final_verification_status,
+        )
+
+    @staticmethod
+    def _reconstruction_detail(context, proposal) -> str:
+        details = []
+        for key in proposal.fact_keys:
+            fact = next((item for item in context.facts if item.semantic_key == key), None)
+            if fact is None:
+                continue
+            safe_value = fact.generalizations.get(proposal.requested_precision.value)
+            if safe_value is None:
+                safe_value = next(iter(fact.generalizations.values()), "withheld")
+            details.append(f"{fact.raw_value} -> {safe_value}")
+        return (
+            " | ".join(details) or "Local reconstruction completed; source facts were not exported."
         )

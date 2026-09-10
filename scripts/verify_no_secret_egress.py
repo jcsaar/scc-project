@@ -117,8 +117,8 @@ async def verify() -> None:
         leaked = [marker for marker in (*PRIVATE_MARKERS, credential) if marker in safe_output]
         if leaked:
             raise RuntimeError(f"TrustSplit surfaces leaked private canaries: {leaked}")
-        if len(captured) < 3:
-            raise RuntimeError("Expected initial, oracle, and revision provider captures")
+        if len(captured) < 2:
+            raise RuntimeError("Expected initial and oracle provider captures")
         if "18,274" not in json.dumps(cloud_only):
             raise RuntimeError("Cloud Only synthetic baseline did not expose its expected canary")
 

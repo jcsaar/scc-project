@@ -4,6 +4,9 @@ test("legitimate TrustSplit collaboration reveals only the approved payload", as
   await page.goto("/");
   await expect(page.getByText("Cloud AI never directly accesses private corporate data.")).toBeVisible();
   await page.getByRole("button", { name: "Run safely" }).click();
+  await expect(page.getByText("Checking the zero-trust privacy border…")).toBeVisible();
+  await expect(page.getByText("Sending approved context to Cloud AI…")).toBeVisible();
+  await expect(page.getByText("Verifying the response locally…")).toBeVisible();
   await page.getByRole("button", { name: "Privacy Pipeline" }).click();
   await expect(page.getByRole("heading", { name: "Exact cloud payload" })).toBeVisible();
   await expect(page.locator("pre")).toContainText("15k-20k transactions per second");

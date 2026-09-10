@@ -1,4 +1,6 @@
+import asyncio
 import json
+import os
 from collections.abc import Callable
 from uuid import uuid4
 
@@ -10,7 +12,9 @@ from app.core.credential_vault import CredentialVault
 from app.domain.policies import Policy
 from app.ledger.repository import ExposureRepository
 from app.orchestration.demo_modes import DemoModeRunner
+from app.orchestration.progress import DemoProgressEmitter, PresentationClock
 from app.orchestration.state_machine import TrustSplitWorkflow, WorkflowResult
+from app.presentation.terminal import TerminalPresenter
 
 
 class ApiModel(BaseModel):
@@ -57,6 +61,18 @@ def create_sessions_router(
     sessions: dict[str, SessionResponse] = {}
     results: dict[str, WorkflowResult] = {}
 
+    def progress_scale() -> float:
+        raw = os.getenv("TRUSTSPLIT_DEMO_DELAY_SCALE", "0")
+        try:
+            scale = float(raw)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=500, detail="Invalid demo delay configuration"
+            ) from error
+        if not 0 <= scale <= 2:
+            raise HTTPException(status_code=500, detail="Invalid demo delay configuration")
+        return scale
+
     @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
     def create_session(request: CreateSessionRequest) -> SessionResponse:
         session = SessionResponse(id=str(uuid4()), **request.model_dump())
@@ -94,6 +110,68 @@ def create_sessions_router(
             )
         results[session_id] = result
         return result
+
+    @router.post("/{session_id}/run-stream")
+    async def run_session_stream(session_id: str, request: RunWorkflowRequest) -> StreamingResponse:
+        session = sessions.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
+        terminal = TerminalPresenter()
+
+        async def on_progress(event: object) -> None:
+            await queue.put(("progress", event))
+
+        emitter = DemoProgressEmitter(
+            stream_sink=on_progress,
+            terminal_sink=terminal,
+            private_terminal_sink=terminal.private,
+            clock=PresentationClock(scale=progress_scale()),
+        )
+
+        async def execute() -> None:
+            try:
+                runner = demo_runner or DemoModeRunner(workflow)
+                result = await runner.run(
+                    mode=session.mode,
+                    prompt=request.prompt,
+                    project_id=session.project_id,
+                    trust_zone_id=session.trust_zone_id,
+                    session_id=session.id,
+                    progress_emitter=emitter,
+                )
+                if exposure_repository is not None:
+                    result = result.model_copy(
+                        update={
+                            "session_budget_remaining": exposure_repository.remaining_budget(
+                                session.id
+                            )
+                        }
+                    )
+                results[session_id] = result
+                await queue.put(("result", result))
+            except Exception as error:  # pragma: no cover - exercised through stream contract
+                await queue.put(("error", str(error)))
+
+        task = asyncio.create_task(execute())
+
+        async def stream():
+            try:
+                while True:
+                    kind, value = await queue.get()
+                    if kind == "progress" or kind == "result":
+                        data = value.model_dump(mode="json")
+                    else:
+                        data = {"detail": value}
+                    yield f"event: {kind}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
+                    if kind in {"result", "error"}:
+                        break
+            finally:
+                if not task.done():
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+
+        return StreamingResponse(stream(), media_type="text/event-stream")
 
     @router.get("/{session_id}")
     def session_status(session_id: str) -> dict[str, str]:

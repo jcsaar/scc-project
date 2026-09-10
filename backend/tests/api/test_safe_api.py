@@ -8,6 +8,7 @@ from app.ledger.repository import ExposureCommit, ExposureRepository
 from app.main import create_app
 
 POLICY = Path(__file__).parents[3] / "policy" / "default.yaml"
+DATASET = Path(__file__).parents[3] / "data" / "synthetic_project_aurora.json"
 PRIVATE_MARKERS = ("Northstar", "Oracle RAC", "18,274", "CustomerAccountID")
 
 
@@ -81,10 +82,52 @@ async def test_policy_update_changes_subsequent_broker_decisions() -> None:
 
 @pytest.mark.anyio
 async def test_policy_update_changes_clarification_limit_for_subsequent_runs() -> None:
-    transport = httpx.ASGITransport(app=create_app())
+    from app.domain.disclosures import PrecisionLevel
+    from app.domain.policies import PolicyLoader
+    from app.domain.providers import ApprovedCloudPayload, CloudContextRequest, CloudRecommendation
+    from app.ledger.repository import ExposureRepository
+    from app.orchestration.state_machine import TrustSplitWorkflow
+    from app.privacy.broker import PrivacyBroker
+    from app.private_data.repository import SyntheticPrivateRepository
+    from app.providers.cloud.base import CloudProvider
+    from app.providers.local.mock import MockLocalModelProvider
+
+    class RepeatingContextCloud(CloudProvider):
+        @property
+        def provider_name(self) -> str:
+            return "repeating-context"
+
+        async def send(self, payload: ApprovedCloudPayload) -> CloudRecommendation:
+            del payload
+            return CloudRecommendation(
+                text="Use eventual consistency.",
+                context_requests=(
+                    CloudContextRequest(
+                        question="Must authoritative writes remain strongly consistent?",
+                        purpose="Validate consistency",
+                        category="architecture.consistency",
+                        requested_precision=PrecisionLevel.BOOLEAN,
+                    ),
+                ),
+            )
+
+    repository = ExposureRepository("sqlite://")
+    repository.initialize()
+    workflow = TrustSplitWorkflow(
+        SyntheticPrivateRepository(DATASET),
+        MockLocalModelProvider(),
+        PrivacyBroker(
+            exposure_repository=repository,
+            policy=PolicyLoader.load(POLICY),
+        ),
+        RepeatingContextCloud(),
+    )
+    transport = httpx.ASGITransport(
+        app=create_app(workflow=workflow, exposure_repository=repository)
+    )
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         policy = (await client.get("/api/policy")).json()
-        policy["max_clarification_rounds"] = 0
+        policy["max_clarification_rounds"] = 1
         updated = await client.put("/api/policy", json=policy)
         session = await client.post(
             "/api/sessions",
@@ -102,7 +145,7 @@ async def test_policy_update_changes_clarification_limit_for_subsequent_runs() -
 
     assert updated.status_code == 200
     stages = [item["stage"] for item in result.json()["egress_evidence"]]
-    assert "clarification" not in stages
+    assert stages.count("clarification") == 1
 
 
 @pytest.mark.anyio

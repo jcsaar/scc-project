@@ -15,6 +15,24 @@ export interface WorkflowEvent {
   safe_summary: string;
 }
 
+export type ProgressStage =
+  | "local_read"
+  | "sensitive_scan"
+  | "safe_reconstruction"
+  | "privacy_border"
+  | "cloud_send"
+  | "cloud_reasoning"
+  | "local_verify"
+  | "return_response";
+
+export interface ProgressEvent {
+  sequence: number;
+  stage: ProgressStage;
+  public_label: string;
+  safe_summary: string;
+  delay_ms: number;
+}
+
 export interface BrokerDecision {
   decision: string;
   reason_code: string;
