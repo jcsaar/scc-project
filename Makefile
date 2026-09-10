@@ -7,12 +7,14 @@ test: backend-test frontend-test
 
 backend-test:
 	cd backend && .venv/bin/python -m pytest -q
+	cd backend && .venv/bin/python -m ruff check app tests migrations ../scripts
 
 frontend-test:
 	cd frontend && npm test
 
 build:
 	cd backend && .venv/bin/python -m compileall -q app
+	cd frontend && npm run lint
 	cd frontend && npm run build
 
 verify-secrets:

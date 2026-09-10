@@ -6,7 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.ledger.repository import ExposureRepository  # noqa: E402
+from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
 
 
 def main() -> int:
@@ -18,8 +19,9 @@ def main() -> int:
         help="SQLite database path (default: backend/trustsplit.db)",
     )
     args = parser.parse_args()
-    repository = ExposureRepository(f"sqlite:///{args.database.resolve()}")
-    repository.initialize()
+    config = Config(str(ROOT / "backend" / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{args.database.resolve()}")
+    command.upgrade(config, "head")
     print(f"Synthetic demo ledger ready: {args.database}")
     return 0
 
