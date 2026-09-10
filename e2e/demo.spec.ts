@@ -1,42 +1,40 @@
 import { expect, test } from "@playwright/test";
 
-test("legitimate TrustSplit collaboration reveals only the approved payload", async ({ page }) => {
+test("chat-first flow shows synchronized thinking and a safe privacy receipt", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Cloud AI never directly accesses private corporate data.")).toBeVisible();
-  await page.getByRole("button", { name: "Run safely" }).click();
+  await expect(page.getByRole("heading", { name: "What can I help you protect?" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Review a private architecture" }).click();
+  await expect(page.getByText("Reading your request locally…")).toBeVisible();
   await expect(page.getByText("Checking the zero-trust privacy border…")).toBeVisible();
   await expect(page.getByText("Sending approved context to Cloud AI…")).toBeVisible();
   await expect(page.getByText("Verifying the response locally…")).toBeVisible();
-  await page.getByRole("button", { name: "Privacy Pipeline" }).click();
-  await expect(page.getByRole("heading", { name: "Exact cloud payload" })).toBeVisible();
-  await expect(page.locator("pre")).toContainText("15k-20k transactions per second");
+  await expect(page.getByText(/Partition write ownership/)).toBeVisible();
+  await expect(page.getByText("Border checked")).toBeVisible();
+  await expect(page.getByText("Raw facts to cloud")).toBeVisible();
+
+  await expect(page.locator("pre")).toContainText("15k-20k");
   await expect(page.locator("pre")).not.toContainText("Northstar");
+  await expect(page.locator("pre")).not.toContainText("18,274");
 });
 
-test("comparison modes truthfully show exposure", async ({ page }) => {
+test("blocked requests stay local and show a hard privacy stop", async ({ page }) => {
   await page.goto("/");
-  await page.getByLabel("Mode").selectOption("cloud_only");
-  await page.getByRole("button", { name: "Run safely" }).click();
-  await expect(page.getByText(/18,274 TPS/)).toBeVisible();
-  await expect(page.getByText("ALLOW")).toBeVisible();
+  await page.getByRole("button", { name: "Try a blocked request" }).click();
 
-  await page.getByLabel("Mode").selectOption("basic_redaction");
-  await page.getByRole("button", { name: "Run safely" }).click();
-  await expect(page.getByText(/18,274 TPS/)).toBeVisible();
-  await expect(page.getByText(/Project \[REDACTED\] serves Customer \[REDACTED\]/)).toBeVisible();
-  await expect(page.getByText(/Northstar/)).not.toBeVisible();
-
-  await page.getByLabel("Mode").selectOption("local_only");
-  await page.getByRole("button", { name: "Run safely" }).click();
-  await expect(page.getByText("Nothing left the device in Local Only mode.")).toBeVisible();
+  await expect(page.getByText("Transmission blocked")).toBeVisible();
+  await expect(page.getByRole("complementary").getByText(/Cloud transmission was blocked/)).toBeVisible();
+  await expect(page.getByText("Raw facts to cloud")).toBeVisible();
+  await expect(page.locator(".payload-details")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("synthetic-demo-secret");
 });
 
-test("mosaic and malicious scenarios end in cumulative denial", async ({ page }) => {
+test("new chat clears the active conversation", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Collaboration" }).click();
-  const runButtons = page.getByRole("button", { name: "Run scenario" });
-  await runButtons.nth(1).click();
-  await expect(page.getByText("Dana's request was denied using the shared trust-zone ledger.")).toBeVisible();
-  await runButtons.nth(2).click();
-  await expect(page.getByText("The cumulative-risk threshold stopped the narrowing sequence.")).toBeVisible();
+  await page.getByRole("button", { name: "Review a private architecture" }).click();
+  await expect(page.getByText(/Partition write ownership/)).toBeVisible();
+
+  await page.getByRole("button", { name: "New chat" }).click();
+  await expect(page.getByRole("heading", { name: "What can I help you protect?" })).toBeVisible();
+  await expect(page.getByText(/Partition write ownership/)).not.toBeVisible();
 });

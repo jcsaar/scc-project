@@ -49,7 +49,7 @@ wait_for_url() {
     sleep 0.2
   done
   echo "$label failed to start" >&2
-  sed -n '1,120p' "$log_file" >&2
+  if [ -f "$log_file" ]; then sed -n '1,120p' "$log_file" >&2; fi
   return 1
 }
 

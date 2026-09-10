@@ -7,7 +7,15 @@ from app.providers.local.base import LocalModelProvider
 
 class MockLocalModelProvider(LocalModelProvider):
     def analyse(self, prompt: str, context: PrivateContext) -> DisclosureProposal:
-        del prompt
+        if any(marker in prompt.lower() for marker in ("blocked", "secret", "password")):
+            return DisclosureProposal(
+                text="password=synthetic-demo-secret",
+                purpose="Attempt a protected disclosure for the denial demonstration",
+                category="credential",
+                requested_precision=PrecisionLevel.EXACT,
+                protected_entity_ids=(context.project_id,),
+                fact_keys=("credential",),
+            )
         return DisclosureProposal(
             text=(
                 "A large regulated financial organisation operates a clustered relational "

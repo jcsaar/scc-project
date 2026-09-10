@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import sys
 from typing import TextIO
@@ -51,26 +50,6 @@ class TerminalPresenter:
             self._write(detail, "34")
         elif self._private_trace:
             self._write(f"[LOCAL PRIVATE] {detail}", "90")
-
-    def border_decision(self, decision: object) -> None:
-        if not self._private_trace:
-            return
-        payload = getattr(decision, "model_dump", lambda: {})()
-        self._write(
-            f"[PRIVACY BORDER] Decision: {payload.get('decision', 'unknown').upper()} | "
-            f"Risk: {payload.get('risk_before', 0)} -> {payload.get('risk_after', 0)} | "
-            f"Budget cost: {payload.get('budget_cost', 0)}",
-            "35",
-        )
-
-    def payload(self, payload: object) -> None:
-        if not self._private_trace:
-            return
-        model_dump = getattr(payload, "model_dump", lambda **_: {})
-        self._write(
-            f"[CLOUD PAYLOAD] {json.dumps(model_dump(mode='json'), separators=(',', ':'))}",
-            "34",
-        )
 
     def _write(self, line: str, colour: str) -> None:
         if self._colour:

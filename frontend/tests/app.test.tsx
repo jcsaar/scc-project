@@ -3,34 +3,38 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/App";
 
-describe("TrustSplit dashboard", () => {
-  it("renders the operator shell and all six views", () => {
+describe("TrustSplit chat workspace", () => {
+  it("renders the chat-first shell and privacy boundary", () => {
     render(<App />);
+
     expect(screen.getByRole("heading", { name: "TrustSplit AI" })).toBeInTheDocument();
-    expect(screen.getByText("Keep the secrets local. Keep the intelligence global.")).toBeInTheDocument();
-    for (const label of ["Chat", "Privacy Pipeline", "Collaboration", "Privacy Dashboard", "Exposure Ledger", "Admin / Policy"]) {
-      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
-    }
+    expect(screen.getByRole("heading", { name: "What can I help you protect?" })).toBeInTheDocument();
+    expect(screen.getByText("Zero-trust boundary")).toBeInTheDocument();
+    expect(screen.getByText("Private by default")).toBeInTheDocument();
+    expect(screen.getByText("Technical trace is running in the integrated terminal")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Privacy Pipeline" })).not.toBeInTheDocument();
   });
 
-  it("renders the exact cloud payload and broker decision", async () => {
+  it("offers safe and blocked demo prompts without exposing the old dashboard", async () => {
     const user = userEvent.setup();
     render(<App />);
-    await user.click(screen.getByRole("button", { name: "Privacy Pipeline" }));
-    expect(screen.getByText(/15k–20k TPS/)).toBeInTheDocument();
-    expect(screen.getByText("GENERALISE")).toBeInTheDocument();
-    expect(screen.queryByText("18,274")).not.toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: "Review a private architecture" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try a blocked request" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "New chat" }));
+    expect(screen.getByRole("heading", { name: "What can I help you protect?" })).toBeInTheDocument();
   });
 
-  it("shows budget, risk, ledger, metrics, and policy state", async () => {
+  it("keeps the composer private and send disabled until text is entered", async () => {
     const user = userEvent.setup();
     render(<App />);
-    await user.click(screen.getByRole("button", { name: "Privacy Dashboard" }));
-    expect(screen.getByText("82 / 100")).toBeInTheDocument();
-    expect(screen.getByText("Reconstruction score")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Exposure Ledger" }));
-    expect(screen.getByText("throughput.capacity")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Admin / Policy" }));
-    expect(screen.getByText("Hard-deny rules always win")).toBeInTheDocument();
+    const composer = screen.getByRole("textbox", { name: "Message" });
+    const send = screen.getByRole("button", { name: "Send message" });
+
+    expect(send).toBeDisabled();
+    await user.type(composer, "Summarise this private design");
+    expect(send).toBeEnabled();
+    expect(screen.getByText("Private by default")).toBeInTheDocument();
   });
 });

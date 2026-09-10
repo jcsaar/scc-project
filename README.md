@@ -21,6 +21,8 @@ make demo
 
 Open `http://127.0.0.1:5173`. The API health endpoint is `http://127.0.0.1:8000/api/health`. Press `Ctrl-C` to stop both services. After dependencies are installed, the mock-provider demo runs offline.
 
+The browser opens directly into the chat-first TrustSplit workspace. Submit the suggested private architecture prompt to watch the simulated pauses, the zero-trust receipt, and the locally verified answer. Keep the VS Code integrated terminal visible: the backend mirrors each stage and prints the broker-approved cloud payload while the demo runs.
+
 Useful commands:
 
 ```bash
@@ -39,7 +41,7 @@ make e2e
 - **Local Only**: no data leaves the local zone, with intentionally reduced external reasoning utility.
 - **Basic Redaction**: names are naively replaced, while numeric and relational clues remain visible.
 
-The Collaboration view includes legitimate, cross-employee mosaic, and malicious-cloud narrowing stories. They are deterministic and use synthetic data.
+The deterministic scenario runner still covers legitimate collaboration, cross-employee mosaic, and malicious-cloud narrowing for backend regression tests. The hackathon-facing browser keeps the primary experience focused on the mediated chat and its live privacy receipt.
 
 ## Security posture
 
