@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,19 @@ def repository(path: Path) -> ExposureRepository:
     repo = ExposureRepository(f"sqlite:///{path}")
     repo.initialize()
     return repo
+
+
+def test_in_memory_repository_supports_fastapi_worker_threads() -> None:
+    repo = ExposureRepository("sqlite://")
+    repo.initialize()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(
+            repo.register_session, "thread-session", "alice", "company_cloud", 100
+        )
+
+    future.result()
+    assert repo.remaining_budget("thread-session") == 100
 
 
 def test_exposure_persists_across_repository_instances(tmp_path: Path) -> None:

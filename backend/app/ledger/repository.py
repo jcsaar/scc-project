@@ -54,7 +54,11 @@ class ExposureRepository:
     }
 
     def __init__(self, database_url: str) -> None:
-        options = {"poolclass": StaticPool} if database_url == "sqlite://" else {}
+        options = (
+            {"poolclass": StaticPool, "connect_args": {"check_same_thread": False}}
+            if database_url == "sqlite://"
+            else {}
+        )
         self._engine = create_engine(database_url, **options)
         if database_url.startswith("sqlite"):
             event.listen(self._engine, "connect", self._configure_sqlite)

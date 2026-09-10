@@ -13,7 +13,7 @@ from app.domain.workflow import VerificationStatus, WorkflowEvent, WorkflowState
 from app.orchestration.events import EventRecorder
 from app.orchestration.oracle import LocalOracle
 from app.orchestration.verifier import LocalVerifier
-from app.privacy.broker import PrivacyBroker
+from app.privacy.broker import BrokerContext, PrivacyBroker
 from app.private_data.repository import SyntheticPrivateRepository
 from app.providers.cloud.base import CloudProvider
 from app.providers.local.base import LocalModelProvider
@@ -73,7 +73,13 @@ class TrustSplitWorkflow:
         self._request_limits = CloudRequestLimits()
         self._verifier = LocalVerifier()
 
-    async def run(self, prompt: str, project_id: str, trust_zone_id: str) -> WorkflowResult:
+    async def run(
+        self,
+        prompt: str,
+        project_id: str,
+        trust_zone_id: str,
+        session_id: str | None = None,
+    ) -> WorkflowResult:
         events = EventRecorder()
         events.emit(WorkflowState.RECEIVE_PROMPT, "employee", "Private prompt received locally.")
 
@@ -91,7 +97,17 @@ class TrustSplitWorkflow:
             "A minimum-information cloud task was proposed.",
         )
 
-        evaluation = self._broker.evaluate(proposal)
+        broker_context = (
+            BrokerContext(
+                session_id=session_id,
+                trust_zone_id=trust_zone_id,
+                dimension=proposal.category.split(".", 1)[0],
+                base_weight=15,
+            )
+            if session_id is not None
+            else None
+        )
+        evaluation = self._broker.evaluate(proposal, broker_context)
         events.emit(
             WorkflowState.BROKER_VALIDATE_OUTBOUND,
             "privacy_broker",

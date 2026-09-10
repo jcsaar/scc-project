@@ -24,7 +24,9 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="TrustSplit AI", version="0.1.0")
     credential_vault = credential_vault or CredentialVault()
-    exposure_repository = exposure_repository or ExposureRepository("sqlite://")
+    exposure_repository = exposure_repository or ExposureRepository(
+        os.getenv("TRUSTSPLIT_DATABASE_URL", "sqlite://")
+    )
     exposure_repository.initialize()
     policy_path = Path(__file__).resolve().parents[2] / "policy" / "default.yaml"
     policy_store = PolicyStore(PolicyLoader.load(policy_path))
@@ -36,7 +38,10 @@ def create_app(
         workflow = TrustSplitWorkflow(
             private_repository=SyntheticPrivateRepository(dataset_path),
             local_provider=MockLocalModelProvider(),
-            broker=PrivacyBroker(),
+            broker=PrivacyBroker(
+                exposure_repository=exposure_repository,
+                policy=policy_store.current,
+            ),
             cloud_provider=MockCloudProvider(),
         )
 
@@ -54,7 +59,14 @@ def create_app(
             "employee_providers": {"supported": ["openai", "anthropic"]},
         }
 
-    app.include_router(create_sessions_router(workflow, credential_vault))
+    app.include_router(
+        create_sessions_router(
+            workflow,
+            credential_vault,
+            exposure_repository=exposure_repository,
+            policy=policy_store.current,
+        )
+    )
     app.include_router(create_demo_router())
     app.include_router(create_ledger_router(exposure_repository))
     app.include_router(create_policy_router(policy_store))

@@ -22,10 +22,17 @@ class DemoModeRunner:
         self._trustsplit = trustsplit
 
     async def run(
-        self, mode: str, prompt: str, project_id: str, trust_zone_id: str
+        self,
+        mode: str,
+        prompt: str,
+        project_id: str,
+        trust_zone_id: str,
+        session_id: str | None = None,
     ) -> WorkflowResult:
         if mode == "trustsplit":
-            result = await self._trustsplit.run(prompt, project_id, trust_zone_id)
+            result = await self._trustsplit.run(
+                prompt, project_id, trust_zone_id, session_id=session_id
+            )
             return result.model_copy(
                 update={
                     "mode": mode,

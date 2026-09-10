@@ -6,6 +6,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from app.core.credential_vault import CredentialVault
+from app.domain.policies import Policy
+from app.ledger.repository import ExposureRepository
 from app.orchestration.demo_modes import DemoModeRunner
 from app.orchestration.state_machine import TrustSplitWorkflow, WorkflowResult
 
@@ -47,6 +49,8 @@ def create_sessions_router(
     workflow: TrustSplitWorkflow,
     credential_vault: CredentialVault,
     demo_runner: DemoModeRunner | None = None,
+    exposure_repository: ExposureRepository | None = None,
+    policy: Policy | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     sessions: dict[str, SessionResponse] = {}
@@ -55,6 +59,16 @@ def create_sessions_router(
     @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
     def create_session(request: CreateSessionRequest) -> SessionResponse:
         session = SessionResponse(id=str(uuid4()), **request.model_dump())
+        if exposure_repository is not None and policy is not None:
+            zone = policy.trust_zones.get(session.trust_zone_id)
+            if zone is None:
+                raise HTTPException(status_code=422, detail="Unknown provider trust zone")
+            exposure_repository.register_session(
+                session.id,
+                session.employee_id,
+                session.trust_zone_id,
+                zone.disclosure_budget,
+            )
         sessions[session.id] = session
         return session
 
@@ -69,6 +83,7 @@ def create_sessions_router(
             prompt=request.prompt,
             project_id=session.project_id,
             trust_zone_id=session.trust_zone_id,
+            session_id=session.id,
         )
         results[session_id] = result
         return result
