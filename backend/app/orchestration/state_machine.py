@@ -2,7 +2,12 @@ import httpx
 from pydantic import Field
 
 from app.core.limits import CloudRequestLimits, UnsafeCloudRequest, validate_cloud_context_request
-from app.domain.disclosures import BrokerDecision, StrictFrozenModel
+from app.domain.disclosures import (
+    ApprovedDisclosure,
+    BrokerDecision,
+    PrecisionLevel,
+    StrictFrozenModel,
+)
 from app.domain.providers import ApprovedCloudPayload
 from app.domain.workflow import VerificationStatus, WorkflowEvent, WorkflowState
 from app.orchestration.events import EventRecorder
@@ -14,11 +19,40 @@ from app.providers.cloud.base import CloudProvider
 from app.providers.local.base import LocalModelProvider
 
 
+class DisclosureEvidence(StrictFrozenModel):
+    text: str = Field(min_length=1)
+    category: str = Field(min_length=1)
+    precision: PrecisionLevel
+    fact_keys: tuple[str, ...] = Field(min_length=1)
+
+    @classmethod
+    def from_approved(cls, disclosure: ApprovedDisclosure) -> "DisclosureEvidence":
+        return cls(**disclosure.model_dump(exclude={"decision_id"}))
+
+
+class CloudPayloadEvidence(StrictFrozenModel):
+    provider_name: str = Field(min_length=1)
+    trust_zone_id: str = Field(min_length=1)
+    disclosures: tuple[DisclosureEvidence, ...] = Field(min_length=1)
+
+    @classmethod
+    def from_approved(cls, payload: ApprovedCloudPayload) -> "CloudPayloadEvidence":
+        return cls(
+            provider_name=payload.provider_name,
+            trust_zone_id=payload.trust_zone_id,
+            disclosures=tuple(
+                DisclosureEvidence.from_approved(item) for item in payload.disclosures
+            ),
+        )
+
+
 class WorkflowResult(StrictFrozenModel):
     final_answer: str = Field(min_length=1)
-    outbound_payload: ApprovedCloudPayload
+    outbound_payload: CloudPayloadEvidence | None
     broker_decision: BrokerDecision
     events: tuple[WorkflowEvent, ...] = Field(min_length=1)
+    mode: str = "trustsplit"
+    exposure_summary: str = "Broker-mediated minimum-information disclosure."
 
 
 class TrustSplitWorkflow:
@@ -80,7 +114,7 @@ class TrustSplitWorkflow:
             events.emit(WorkflowState.FINAL, "local_ai", "Final local-only answer ready.")
             return WorkflowResult(
                 final_answer=self._verifier.local_fallback(),
-                outbound_payload=payload,
+                outbound_payload=CloudPayloadEvidence.from_approved(payload),
                 broker_decision=evaluation.decision,
                 events=events.events,
             )
@@ -184,7 +218,7 @@ class TrustSplitWorkflow:
         events.emit(WorkflowState.FINAL, "local_ai", "Final locally verified answer ready.")
         return WorkflowResult(
             final_answer=final_answer,
-            outbound_payload=payload,
+            outbound_payload=CloudPayloadEvidence.from_approved(payload),
             broker_decision=evaluation.decision,
             events=events.events,
         )

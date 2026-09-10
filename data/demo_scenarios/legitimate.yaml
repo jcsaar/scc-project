@@ -1,0 +1,4 @@
+id: legitimate
+synthetic_demo_data: true
+story: A Boolean oracle answer improves a recommendation without releasing source facts.
+expected_outcome: allow

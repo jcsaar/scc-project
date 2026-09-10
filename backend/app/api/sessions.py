@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from app.core.credential_vault import CredentialVault
+from app.orchestration.demo_modes import DemoModeRunner
 from app.orchestration.state_machine import TrustSplitWorkflow, WorkflowResult
 
 
@@ -15,7 +16,7 @@ class ApiModel(BaseModel):
 
 class CreateSessionRequest(ApiModel):
     employee_id: str = Field(min_length=1)
-    mode: str = Field(pattern="^trustsplit$")
+    mode: str = Field(pattern="^(trustsplit|cloud_only|local_only|basic_redaction)$")
     trust_zone_id: str = Field(min_length=1)
     project_id: str = Field(min_length=1)
 
@@ -43,7 +44,9 @@ class ProviderConnectionResponse(ApiModel):
 
 
 def create_sessions_router(
-    workflow: TrustSplitWorkflow, credential_vault: CredentialVault
+    workflow: TrustSplitWorkflow,
+    credential_vault: CredentialVault,
+    demo_runner: DemoModeRunner | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     sessions: dict[str, SessionResponse] = {}
@@ -60,7 +63,9 @@ def create_sessions_router(
         session = sessions.get(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Session not found")
-        result = await workflow.run(
+        runner = demo_runner or DemoModeRunner(workflow)
+        result = await runner.run(
+            mode=session.mode,
             prompt=request.prompt,
             project_id=session.project_id,
             trust_zone_id=session.trust_zone_id,

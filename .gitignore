@@ -12,6 +12,8 @@ __pycache__/
 backend/.coverage
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 playwright-report/
 test-results/
-

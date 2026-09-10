@@ -1,0 +1,4 @@
+id: mosaic
+synthetic_demo_data: true
+employees: [Alice, Bob, Charlie, Dana]
+expected_decisions: [allow, allow, generalise, deny]

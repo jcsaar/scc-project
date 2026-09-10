@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from app.api.demo import create_demo_router
 from app.api.ledger import create_ledger_router
 from app.api.policy import PolicyStore, create_policy_router
 from app.api.sessions import create_sessions_router
@@ -54,6 +55,7 @@ def create_app(
         }
 
     app.include_router(create_sessions_router(workflow, credential_vault))
+    app.include_router(create_demo_router())
     app.include_router(create_ledger_router(exposure_repository))
     app.include_router(create_policy_router(policy_store))
     return app
