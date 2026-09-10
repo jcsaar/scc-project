@@ -1,0 +1,16 @@
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, inspect
+
+
+def test_initial_migration_builds_ledger_schema(tmp_path: Path) -> None:
+    database = tmp_path / "migrated.db"
+    config = Config(str(Path(__file__).parents[2] / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database}")
+
+    command.upgrade(config, "head")
+
+    tables = set(inspect(create_engine(f"sqlite:///{database}")).get_table_names())
+    assert {"sessions", "exposure_claims", "exposure_events"} <= tables
