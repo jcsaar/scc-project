@@ -10,7 +10,7 @@ export function ThinkingTrace({ events, status }: { events: ProgressEvent[]; sta
       <ol>
         {events.map((event) => {
           const complete = status !== "running" || event.sequence !== active;
-          return <li key={event.sequence} aria-label={`${event.public_label} ${complete ? "complete" : "in progress"}`} className={complete ? "complete" : "active"}>{complete ? <Check size={14} /> : <LoaderCircle size={14} className="spin" />}<div><b>{event.public_label}</b><small>{event.safe_summary}</small></div></li>;
+          return <li key={event.sequence} aria-label={`${event.public_label} ${complete ? "complete" : "in progress"}`} className={complete ? "complete" : "active"}>{complete ? <Check size={14} /> : <LoaderCircle size={14} className="spin" />}<div><b>{event.public_label}</b><small>{event.safe_summary}</small>{event.safe_detail && <div className="safe-reconstruction"><span>Local AI reconstructed prompt</span><code>{event.safe_detail}</code></div>}</div></li>;
         })}
       </ol>
     </section>

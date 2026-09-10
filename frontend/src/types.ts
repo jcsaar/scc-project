@@ -22,6 +22,7 @@ export interface ProgressEvent {
   stage: ProgressStage;
   public_label: string;
   safe_summary: string;
+  safe_detail?: string | null;
   delay_ms: number;
 }
 

@@ -21,7 +21,7 @@ flowchart LR
 ## Components
 
 - The FastAPI backend owns the synthetic private repository, policy, credential vault, orchestration state machine, and SQLite ledger.
-- The React/Vite dashboard consumes only presentation-safe REST and SSE contracts.
+- The React/Vite chat workspace consumes only presentation-safe REST and SSE contracts.
 - The Local AI creates disclosure proposals and verifies cloud recommendations against hidden constraints.
 - The Privacy Broker is the sole disclosure authority. It applies hard-deny rules, generalisation, incremental reconstruction risk, and per-session budget.
 - Cloud adapters accept only the frozen `ApprovedCloudPayload` type. They have no repository dependency.

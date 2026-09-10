@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/App";
+import { ThinkingTrace } from "../src/components/ThinkingTrace";
 
 describe("TrustSplit chat workspace", () => {
   it("renders the chat-first shell and privacy boundary", () => {
@@ -38,5 +39,24 @@ describe("TrustSplit chat workspace", () => {
     await user.type(composer, "Summarise this private design");
     expect(send).toBeEnabled();
     expect(screen.getByText("Private by default")).toBeInTheDocument();
+  });
+
+  it("renders the safe local reconstruction inside the thinking trace", () => {
+    render(
+      <ThinkingTrace
+        status="idle"
+        events={[{
+          sequence: 3,
+          stage: "safe_reconstruction",
+          public_label: "Reconstructing a safe prompt…",
+          safe_summary: "A minimum-information representation was prepared.",
+          safe_detail: "A large regulated financial organisation uses a clustered relational database at 15k-20k TPS.",
+          delay_ms: 1750,
+        }]}
+      />,
+    );
+
+    expect(screen.getByText("Local AI reconstructed prompt")).toBeInTheDocument();
+    expect(screen.getByText(/15k-20k TPS/)).toBeInTheDocument();
   });
 });

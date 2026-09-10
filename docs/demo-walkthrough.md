@@ -16,7 +16,7 @@ The welcome screen has three pre-made synthetic prompts so the behavior is repro
 - **Try a credential leak** — a synthetic API key and password that the hard rules deny.
 - **Try an exact customer lookup** — a synthetic name and NRIC that the identity rule denies.
 
-Click **Review a private architecture**. The assistant intentionally pauses for roughly 11 seconds at each realistic juncture:
+Click **Review a private architecture**. The prompt intentionally includes synthetic private facts—Northstar Financial Group, Oracle RAC, and 18,274 TPS—so the transformation is visible. The assistant pauses for roughly 11 seconds across the realistic junctures:
 
 1. Reading the request locally.
 2. Scanning for sensitive information.
@@ -26,11 +26,11 @@ Click **Review a private architecture**. The assistant intentionally pauses for 
 6. Verifying the cloud recommendation against hidden local constraints.
 7. Returning the verified answer to the chat.
 
-The right-hand **Live privacy receipt** makes the invariant visible: raw facts to cloud stays `0`, while the approved payload contains a bounded `15k-20k` throughput range and no exact customer, project codename, internal services, or `18,274` value. Expand **Approved payload** to show the JSON. The terminal prints the same public stages plus local-only reconstruction details and the exact payload that crossed the border.
+The thinking card now shows the safe prompt reconstructed by Local AI. The right-hand **Live privacy receipt** makes the invariant visible: raw facts to cloud stays `0`, while the approved payload contains a bounded `15k-20k` throughput range and no exact customer, project codename, internal services, or `18,274` value. Expand **Approved payload** to show the JSON. The terminal prints the same public stages plus local-only detection/reconstruction details and the exact payload that crossed the border.
 
 ## 3. Show a hard stop (45 seconds)
 
-Click **New chat**, then **Try a credential leak**. The local provider proposes a credential-like disclosure. The broker rejects it before any cloud call. The receipt changes to **Transmission blocked**, the answer is a local fallback, and no secret appears in the cloud payload or browser evidence. Repeat with **Try an exact customer lookup** to show a separate hard rule for protected identity.
+Click **New chat**, then **Try a credential leak**. Local AI still prepares a safe alternative—diagnose the authentication flow without using credential values—but the broker rejects the original disclosure because the exact credential-dependent task cannot remain useful after redaction. The receipt changes to **Transmission blocked**, the answer is a local fallback, and no secret appears in the cloud payload or browser evidence. Repeat with **Try an exact customer lookup** to see a safe workflow alternative while exact identity lookup remains local.
 
 ## 4. Close on the security story (30 seconds)
 

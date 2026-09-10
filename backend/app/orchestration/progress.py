@@ -26,6 +26,7 @@ class ProgressEvent(StrictFrozenModel):
     stage: ProgressStage
     public_label: str = Field(min_length=1)
     safe_summary: str = Field(min_length=1)
+    safe_detail: str | None = None
     delay_ms: int = Field(ge=0, le=3000)
 
 
@@ -75,6 +76,7 @@ class DemoProgressEmitter:
         public_label: str,
         safe_summary: str,
         terminal_detail: str | None = None,
+        safe_detail: str | None = None,
         delay_ms: int | None = None,
     ) -> ProgressEvent:
         actual_delay = self._delays[stage] if delay_ms is None else delay_ms
@@ -85,6 +87,7 @@ class DemoProgressEmitter:
             stage=stage,
             public_label=public_label,
             safe_summary=safe_summary,
+            safe_detail=safe_detail,
             delay_ms=actual_delay,
         )
         for sink in (self._stream_sink, self._terminal_sink):

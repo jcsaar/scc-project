@@ -35,8 +35,13 @@ class MockCloudProvider(CloudProvider):
         ):
             return CloudRecommendation(
                 text=(
-                    "Partition write ownership around a stable business key and preserve "
-                    "strong consistency for authoritative writes."
+                    "Partition write ownership around a stable business key so each authoritative "
+                    "write has one clear owner and cross-node coordination is reduced. Preserve "
+                    "strong consistency for ledger and account-position updates, while routing "
+                    "non-critical enrichment through bounded asynchronous queues. Validate the "
+                    "design against the 15k-20k TPS workload with contention, p95 latency, and "
+                    "retry-rate dashboards; roll out with shadow traffic, idempotency keys, and "
+                    "a rollback threshold if authoritative-write latency regresses."
                 )
             )
         return CloudRecommendation(

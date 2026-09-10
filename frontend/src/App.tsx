@@ -20,7 +20,7 @@ import type { ProgressEvent, WorkflowResult } from "./types";
 import "./styles.css";
 
 const starterPrompt =
-  "Review Project Aurora's transaction architecture and recommend a safe scale-out design.";
+  "Review the transaction architecture for Northstar Financial Group. The production workload runs on Oracle RAC at 18,274 TPS across settlement and ledger writes, with a strong-consistency requirement for authoritative account updates and no assumption that we can add database nodes. Recommend a safe scale-out design that reduces write contention, identifies what should remain private, and calls out validation metrics and rollout risks.";
 
 const demoPrompts = [
   {

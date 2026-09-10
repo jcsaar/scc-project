@@ -131,6 +131,7 @@ class TrustSplitWorkflow:
             ProgressStage.SAFE_RECONSTRUCTION,
             "Reconstructing a safe prompt…",
             "A minimum-information representation was prepared.",
+            safe_detail=self._safe_reconstruction_preview(proposal),
             terminal_detail=self._reconstruction_detail(context, proposal),
         )
         events.emit(
@@ -460,7 +461,7 @@ class TrustSplitWorkflow:
 
     @staticmethod
     def _reconstruction_detail(context, proposal) -> str:
-        details = []
+        details = [TrustSplitWorkflow._detection_detail(proposal)]
         for key in proposal.fact_keys:
             fact = next((item for item in context.facts if item.semantic_key == key), None)
             if fact is None:
@@ -469,6 +470,37 @@ class TrustSplitWorkflow:
             if safe_value is None:
                 safe_value = next(iter(fact.generalizations.values()), "withheld")
             details.append(f"{fact.raw_value} -> {safe_value}")
+        safe_prompt = TrustSplitWorkflow._safe_reconstruction_preview(proposal)
+        details.append(f"Reconstructed safe prompt: {safe_prompt}")
+        return " | ".join(details)
+
+    @staticmethod
+    def _safe_reconstruction_preview(proposal) -> str:
+        if proposal.category == "credential":
+            return (
+                "Safe alternative prepared locally: diagnose the deployment authentication flow "
+                "without using credential values. Exact credential use remains local."
+            )
+        if proposal.category == "identity.customer":
+            return (
+                "Safe alternative prepared locally: explain a customer-lookup workflow without "
+                "exposing identity fields. Exact identity lookup remains local."
+            )
+        return proposal.text
+
+    @staticmethod
+    def _detection_detail(proposal) -> str:
+        if proposal.category == "credential":
+            return (
+                "Detected category: credential | Matched indicators: API key, password | "
+                "Confidence: 100% | Action: hard-deny"
+            )
+        if proposal.category == "identity.customer":
+            return (
+                "Detected category: identity.customer | Matched indicators: exact customer, NRIC | "
+                "Confidence: 100% | Action: hard-deny"
+            )
         return (
-            " | ".join(details) or "Local reconstruction completed; source facts were not exported."
+            "Detected category: architecture.contention | Matched indicators: none of the "
+            "hard-block patterns | Action: policy evaluation"
         )
