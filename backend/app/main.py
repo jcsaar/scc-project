@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
 
 from app.api.sessions import create_sessions_router
+from app.core.credential_vault import CredentialVault
 from app.orchestration.state_machine import TrustSplitWorkflow
 from app.privacy.broker import PrivacyBroker
 from app.private_data.repository import SyntheticPrivateRepository
@@ -10,8 +12,12 @@ from app.providers.cloud.mock import MockCloudProvider
 from app.providers.local.mock import MockLocalModelProvider
 
 
-def create_app(workflow: TrustSplitWorkflow | None = None) -> FastAPI:
+def create_app(
+    workflow: TrustSplitWorkflow | None = None,
+    credential_vault: CredentialVault | None = None,
+) -> FastAPI:
     app = FastAPI(title="TrustSplit AI", version="0.1.0")
+    credential_vault = credential_vault or CredentialVault()
 
     if workflow is None:
         dataset_path = (
@@ -28,7 +34,17 @@ def create_app(workflow: TrustSplitWorkflow | None = None) -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok", "mode": "offline-capable"}
 
-    app.include_router(create_sessions_router(workflow))
+    @app.get("/api/providers/status")
+    def provider_status() -> dict[str, dict[str, object]]:
+        return {
+            "company_cloud": {
+                "provider": os.getenv("COMPANY_CLOUD_PROVIDER", "openai"),
+                "available": bool(os.getenv("COMPANY_CLOUD_API_KEY")),
+            },
+            "employee_providers": {"supported": ["openai", "anthropic"]},
+        }
+
+    app.include_router(create_sessions_router(workflow, credential_vault))
     return app
 
 
