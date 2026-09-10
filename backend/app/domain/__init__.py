@@ -1,0 +1,2 @@
+"""Security-boundary domain contracts."""
+
