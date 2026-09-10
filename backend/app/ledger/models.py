@@ -31,6 +31,7 @@ class ExposureClaimRow(Base):
     safe_representation: Mapped[str] = mapped_column(String, nullable=False)
     representation_hash: Mapped[str] = mapped_column(String, nullable=False)
     precision: Mapped[str] = mapped_column(String, nullable=False)
+    base_weight: Mapped[int] = mapped_column(Integer, nullable=False)
     first_exposed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
