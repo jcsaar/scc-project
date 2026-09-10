@@ -46,14 +46,14 @@ class PresentationClock:
 
 class DemoProgressEmitter:
     _delays = {
-        ProgressStage.LOCAL_READ: 900,
-        ProgressStage.SENSITIVE_SCAN: 1200,
-        ProgressStage.SAFE_RECONSTRUCTION: 1400,
-        ProgressStage.PRIVACY_BORDER: 1300,
-        ProgressStage.CLOUD_SEND: 900,
-        ProgressStage.CLOUD_REASONING: 1500,
-        ProgressStage.LOCAL_VERIFY: 1200,
-        ProgressStage.RETURN_RESPONSE: 600,
+        ProgressStage.LOCAL_READ: 1200,
+        ProgressStage.SENSITIVE_SCAN: 1500,
+        ProgressStage.SAFE_RECONSTRUCTION: 1750,
+        ProgressStage.PRIVACY_BORDER: 1600,
+        ProgressStage.CLOUD_SEND: 1200,
+        ProgressStage.CLOUD_REASONING: 1800,
+        ProgressStage.LOCAL_VERIFY: 1450,
+        ProgressStage.RETURN_RESPONSE: 750,
     }
 
     def __init__(

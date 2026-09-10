@@ -15,12 +15,14 @@ describe("TrustSplit chat workspace", () => {
     expect(screen.queryByRole("button", { name: "Privacy Pipeline" })).not.toBeInTheDocument();
   });
 
-  it("offers safe and blocked demo prompts without exposing the old dashboard", async () => {
+  it("offers safe and sensitive demo prompts without exposing the old dashboard", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     expect(screen.getByRole("button", { name: "Review a private architecture" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try a blocked request" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try a credential leak" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try an exact customer lookup" })).toBeInTheDocument();
+    expect(screen.getByText(/Synthetic API key \+ password/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "New chat" }));
     expect(screen.getByRole("heading", { name: "What can I help you protect?" })).toBeInTheDocument();

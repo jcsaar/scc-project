@@ -21,7 +21,7 @@ make demo
 
 Open `http://127.0.0.1:5173`. The API health endpoint is `http://127.0.0.1:8000/api/health`. Press `Ctrl-C` to stop both services. After dependencies are installed, the mock-provider demo runs offline.
 
-The browser opens directly into the chat-first TrustSplit workspace. Submit the suggested private architecture prompt to watch the simulated pauses, the zero-trust receipt, and the locally verified answer. Keep the VS Code integrated terminal visible: the backend mirrors each stage and prints the broker-approved cloud payload while the demo runs.
+The browser opens directly into the chat-first TrustSplit workspace. Choose one of the pre-made synthetic prompts: a safe architecture review, a credential leak attempt, or an exact customer lookup. The assistant pauses at each stage for a realistic ~11-second run, while the zero-trust receipt shows the result. Keep the VS Code integrated terminal visible: the backend mirrors each stage and prints the broker-approved cloud payload while the demo runs.
 
 Useful commands:
 

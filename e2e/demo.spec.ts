@@ -18,15 +18,27 @@ test("chat-first flow shows synchronized thinking and a safe privacy receipt", a
   await expect(page.locator("pre")).not.toContainText("18,274");
 });
 
-test("blocked requests stay local and show a hard privacy stop", async ({ page }) => {
+test("credential presets stay local and show a hard privacy stop", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Try a blocked request" }).click();
+  await page.getByRole("button", { name: "Try a credential leak" }).click();
 
   await expect(page.getByText("Transmission blocked")).toBeVisible();
-  await expect(page.getByRole("complementary").getByText(/Cloud transmission was blocked/)).toBeVisible();
+  await expect(page.getByRole("complementary").getByText(/cannot leave the local zone/)).toBeVisible();
   await expect(page.getByText("Raw facts to cloud")).toBeVisible();
   await expect(page.locator(".payload-details")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("synthetic-demo-secret");
+});
+
+test("exact customer presets are denied before cloud egress", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Try an exact customer lookup" }).click();
+
+  await expect(page.getByText("Transmission blocked")).toBeVisible();
+  await expect(page.getByRole("complementary").getByText(/cannot leave the local zone/)).toBeVisible();
+  await expect(page.getByText("Raw facts to cloud")).toBeVisible();
+  await expect(page.locator(".payload-details")).toHaveCount(0);
+  await expect(page.locator("body")).toContainText("Aisha Rahman");
+  await expect(page.locator("body")).not.toContainText("Cloud received approved context");
 });
 
 test("new chat clears the active conversation", async ({ page }) => {

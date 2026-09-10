@@ -7,7 +7,18 @@ from app.providers.local.base import LocalModelProvider
 
 class MockLocalModelProvider(LocalModelProvider):
     def analyse(self, prompt: str, context: PrivateContext) -> DisclosureProposal:
-        if any(marker in prompt.lower() for marker in ("blocked", "secret", "password")):
+        lower_prompt = prompt.lower()
+        if any(
+            marker in lower_prompt
+            for marker in (
+                "blocked",
+                "secret",
+                "password",
+                "api key",
+                "access token",
+                "private key",
+            )
+        ):
             return DisclosureProposal(
                 text="password=synthetic-demo-secret",
                 purpose="Attempt a protected disclosure for the denial demonstration",
@@ -15,6 +26,24 @@ class MockLocalModelProvider(LocalModelProvider):
                 requested_precision=PrecisionLevel.EXACT,
                 protected_entity_ids=(context.project_id,),
                 fact_keys=("credential",),
+            )
+        if any(
+            marker in lower_prompt
+            for marker in (
+                "exact customer",
+                "customer identity",
+                "nric",
+                "national id",
+                "account number",
+            )
+        ):
+            return DisclosureProposal(
+                text="Aisha Rahman · NRIC S1234567A · account 004281",
+                purpose="Attempt to identify a protected customer for the denial demonstration",
+                category="identity.customer",
+                requested_precision=PrecisionLevel.EXACT,
+                protected_entity_ids=(context.project_id,),
+                fact_keys=("customer_identity",),
             )
         return DisclosureProposal(
             text=(

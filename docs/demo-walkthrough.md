@@ -10,7 +10,13 @@ Run `make demo`, then open `http://127.0.0.1:5173`. The deterministic mock provi
 
 ## 2. Run the safe path (2 minutes)
 
-Click **Review a private architecture**. The assistant intentionally pauses at each realistic juncture:
+The welcome screen has three pre-made synthetic prompts so the behavior is reproducible:
+
+- **Review a private architecture** — an approved, bounded abstraction.
+- **Try a credential leak** — a synthetic API key and password that the hard rules deny.
+- **Try an exact customer lookup** — a synthetic name and NRIC that the identity rule denies.
+
+Click **Review a private architecture**. The assistant intentionally pauses for roughly 11 seconds at each realistic juncture:
 
 1. Reading the request locally.
 2. Scanning for sensitive information.
@@ -24,7 +30,7 @@ The right-hand **Live privacy receipt** makes the invariant visible: raw facts t
 
 ## 3. Show a hard stop (45 seconds)
 
-Click **New chat**, then **Try a blocked request**. The local provider proposes a credential-like disclosure. The broker rejects it before any cloud call. The receipt changes to **Transmission blocked**, the answer is a local fallback, and no secret appears in the cloud payload or browser evidence.
+Click **New chat**, then **Try a credential leak**. The local provider proposes a credential-like disclosure. The broker rejects it before any cloud call. The receipt changes to **Transmission blocked**, the answer is a local fallback, and no secret appears in the cloud payload or browser evidence. Repeat with **Try an exact customer lookup** to show a separate hard rule for protected identity.
 
 ## 4. Close on the security story (30 seconds)
 

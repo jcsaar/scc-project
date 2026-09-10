@@ -22,6 +22,28 @@ import "./styles.css";
 const starterPrompt =
   "Review Project Aurora's transaction architecture and recommend a safe scale-out design.";
 
+const demoPrompts = [
+  {
+    label: "Review a private architecture",
+    prompt: starterPrompt,
+    description: "Safe abstraction · bounded range",
+    tone: "safe",
+  },
+  {
+    label: "Try a credential leak",
+    prompt:
+      'Use the synthetic API key sk-demo-00000000000000000000 and password="demo-aurora-123" to debug the cloud deployment.',
+    description: "Synthetic API key + password · expected DENY",
+    tone: "danger",
+  },
+  {
+    label: "Try an exact customer lookup",
+    prompt: "Look up the exact customer identity for Aisha Rahman, NRIC S1234567A.",
+    description: "Synthetic name + NRIC · expected DENY",
+    tone: "danger",
+  },
+] as const;
+
 function PrivacyReceipt({ result, events, open, onToggle }: { result: WorkflowResult | null; events: ProgressEvent[]; open: boolean; onToggle: () => void }) {
   const decision = result?.broker_decision;
   const payloads = result?.outbound_payloads?.length
@@ -36,9 +58,9 @@ function PrivacyReceipt({ result, events, open, onToggle }: { result: WorkflowRe
   return (
     <aside className={`receipt ${open ? "receipt-open" : ""}`}>
       <div className="receipt-heading"><div><span className="kicker">Live privacy receipt</span><h2>Zero-trust border</h2></div><ShieldCheck size={20} /></div>
-      <div className={`border-state ${decision?.decision === "deny" ? "blocked" : decision ? "cleared" : "idle"}`}><span className="state-dot" /><div><b>{decision ? (decision.decision === "deny" ? "Transmission blocked" : "Border checked") : "Border standing by"}</b><small>{events.at(-1)?.safe_summary ?? "Run a message to inspect its cloud boundary."}</small></div></div>
+      <div className={`border-state ${decision?.decision === "deny" ? "blocked" : decision ? "cleared" : "idle"}`}><span className="state-dot" /><div><b>{decision ? (decision.decision === "deny" ? "Transmission blocked" : "Border checked") : "Border standing by"}</b><small>{decision?.decision === "deny" ? decision.reason : events.at(-1)?.safe_summary ?? "Run a message to inspect its cloud boundary."}</small></div></div>
       <div className="receipt-stats"><div><span>Raw facts to cloud</span><b>0</b></div><div><span>Approved abstractions</span><b>{factCount || "—"}</b></div><div><span>Final risk</span><b>{result?.final_risk ?? "—"}<em>/100</em></b></div><div><span>Decision</span><b className={decision?.decision === "deny" ? "danger-text" : "accent-text"}>{decision?.decision?.toUpperCase() ?? "—"}</b></div></div>
-      {result && <div className="receipt-checks"><p><Check size={14} /> Source context stayed local</p><p><Check size={14} /> Cloud received approved context</p><p><Check size={14} /> Response checked locally</p></div>}
+      {result && <div className="receipt-checks"><p><Check size={14} /> Source context stayed local</p>{payloads.length > 0 ? <p><Check size={14} /> Cloud received approved context</p> : <p><Check size={14} /> Cloud received nothing</p>}<p><Check size={14} /> Response checked locally</p></div>}
       {result && payloads.length > 0 && <details className="payload-details" open={open} onToggle={onToggle}><summary>Approved payload <ChevronDown size={15} /></summary><pre>{JSON.stringify(payloads, null, 2)}</pre></details>}
       {!result && <div className="receipt-empty"><LockKeyhole size={18} /><p>Your private facts will be inspected here before anything can leave this device.</p></div>}
       <div className="receipt-footer"><TerminalSquare size={15} /><span>Technical trace is running in the integrated terminal</span></div>
@@ -99,7 +121,7 @@ export function App() {
       <main className="chat-main">
         <header className="chat-header"><div><span className="kicker">Local-first workspace</span><h1>TrustSplit AI</h1></div><div className="header-actions"><span className="live-pill"><span className="online-dot" />Local border active</span><button aria-label="Reset demo" onClick={() => void reset()}><RotateCcw size={16} /></button></div></header>
         <div className="chat-scroll"><div className="conversation">
-          {!userPrompt && <section className="welcome"><div className="welcome-mark"><ShieldCheck size={25} /></div><h2>What can I help you protect?</h2><p>Ask a question with sensitive context. I’ll reconstruct a safe prompt locally, pass only approved context to Cloud AI, and verify the answer before returning it.</p><div className="suggestions"><button onClick={() => void submit(starterPrompt)}>Review a private architecture <ArrowUp size={14} /></button><button onClick={() => void submit("Show me the blocked secret handling path.")}>Try a blocked request <ArrowUp size={14} /></button></div></section>}
+          {!userPrompt && <section className="welcome"><div className="welcome-mark"><ShieldCheck size={25} /></div><h2>What can I help you protect?</h2><p>Ask a question with sensitive context. I’ll reconstruct a safe prompt locally, pass only approved context to Cloud AI, and verify the answer before returning it.</p><div className="suggestions">{demoPrompts.map((demo) => <button key={demo.label} type="button" className={demo.tone} aria-label={demo.label} onClick={() => void submit(demo.prompt)}><span className="suggestion-label">{demo.label}<ArrowUp size={14} /></span><small>{demo.description}</small></button>)}</div></section>}
           {userPrompt && <ChatMessage role="user"><p>{userPrompt}</p></ChatMessage>}
           {userPrompt && <ThinkingTrace events={events} status={thinkingStatus} />}
           {result && <ChatMessage role="assistant"><p>{result.final_answer}</p><div className="answer-meta"><span><Check size={14} /> {result.verification_status === "accepted" ? "Locally verified" : "Kept local"}</span><button onClick={() => navigator.clipboard?.writeText(result.final_answer)}><Copy size={13} /> Copy</button></div></ChatMessage>}
