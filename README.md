@@ -50,3 +50,4 @@ See [Architecture](docs/architecture.md), [Threat model](docs/threat-model.md), 
 ## Limitations
 
 This is a hackathon POC, not production-ready software or a formal privacy guarantee. The reconstruction score is an internal heuristic, not a probability. The API has no authentication or transport hardening, sessions are process-local, and policy updates are not access-controlled. See [Limitations](docs/limitations.md) for the complete list.
+# ssc-project
