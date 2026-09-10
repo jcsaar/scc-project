@@ -22,7 +22,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { getLedger, getPolicy, runScenario, runWorkflow, updatePolicy } from "./api";
+import { getLedger, getPolicy, resetDemo, runScenario, runWorkflow, updatePolicy } from "./api";
 import type {
   DemoMode,
   LedgerClaim,
@@ -59,6 +59,8 @@ const preview: WorkflowResult = {
     ],
   },
   session_budget_remaining: 82,
+  final_risk: 31,
+  verification_status: "accepted",
   broker_decision: {
     decision: "generalise",
     reason_code: "minimum_useful_precision",
@@ -83,6 +85,7 @@ const preview: WorkflowResult = {
   ],
 };
 preview.outbound_payloads = preview.outbound_payload ? [preview.outbound_payload] : [];
+preview.egress_evidence = [{ stage: "initial", decision: preview.broker_decision, payload: preview.outbound_payload }];
 
 const scenarioCards = [
   { id: "legitimate", name: "Legitimate collaboration", description: "A safe Boolean oracle answer improves the cloud recommendation." },
@@ -178,12 +181,13 @@ function PipelineView({ result }: { result: WorkflowResult }) {
         <div className="panel-heading"><div><span className="eyebrow">Immutable approved envelope</span><h2>Exact cloud payload</h2></div><Braces /></div>
         <pre>{JSON.stringify(payloads.map((payload, sequence) => ({ sequence: sequence + 1, provider: payload.provider_name, trust_zone: payload.trust_zone_id, approved_disclosures: payload.disclosures.map((item) => ({ text: item.text, precision: item.precision, fact_keys: item.fact_keys })) })), null, 2)}</pre>
         <div className="payload-footer"><span><CheckCircle2 /> Brokered messages</span><strong>{payloads.length}</strong><span className="muted">{result.mode === "trustsplit" ? "Exact source facts withheld" : "Synthetic comparison evidence"}</span></div>
+        {(result.egress_evidence?.length ?? 0) > 0 && <ol className="timeline">{result.egress_evidence?.map((item, index) => <li key={`${item.stage}-${index}`}><span className="sequence">{String(index + 1).padStart(2, "0")}</span><div><b>{item.stage} · {item.decision.decision}</b><p>Risk {item.decision.risk_before} → {item.decision.risk_after}; budget cost {item.decision.budget_cost}</p></div></li>)}</ol>}
       </section>
     </div>
   );
 }
 
-function CollaborationView({ result }: { result: WorkflowResult }) {
+function CollaborationView({ result, onScenario }: { result: WorkflowResult; onScenario: (value: ScenarioResult) => void }) {
   const [scenario, setScenario] = useState<ScenarioResult | null>(null);
   const [running, setRunning] = useState("");
   const [scenarioError, setScenarioError] = useState("");
@@ -191,7 +195,9 @@ function CollaborationView({ result }: { result: WorkflowResult }) {
     setRunning(id);
     setScenarioError("");
     try {
-      setScenario(await runScenario(id));
+      const value = await runScenario(id);
+      setScenario(value);
+      onScenario(value);
     } catch (error) {
       setScenario(null);
       setScenarioError(error instanceof Error ? error.message : "Scenario failed safely.");
@@ -219,19 +225,19 @@ function CollaborationView({ result }: { result: WorkflowResult }) {
 }
 
 function DashboardView({ result }: { result: WorkflowResult }) {
-  const risk = result.broker_decision.risk_after;
+  const risk = result.final_risk ?? result.broker_decision.risk_after;
   const remaining = result.session_budget_remaining ?? 0;
   const initialBudget = result.outbound_payload?.trust_zone_id === "company_cloud" ? 100 : 60;
   return (
     <div className="dashboard-layout">
-      <div className="metrics-grid"><Metric label="Session privacy budget" value={`${remaining} / ${initialBudget}`} note={`${Math.max(0, initialBudget - remaining)} units used in this session`} /><Metric label="Reconstruction score" value={`${risk} / 100`} note="Internal heuristic · not probability" tone="amber" /><Metric label="Recommendation status" value="Verified" note="Checked locally against hidden constraints" tone="violet" /></div>
+      <div className="metrics-grid"><Metric label="Session privacy budget" value={`${remaining} / ${initialBudget}`} note={`${Math.max(0, initialBudget - remaining)} units used in this session`} /><Metric label="Reconstruction score" value={`${risk} / 100`} note="Final cumulative run risk · not probability" tone="amber" /><Metric label="Recommendation status" value={result.verification_status === "accepted" ? "Verified" : result.verification_status === "local_only" ? "Local fallback" : "Not applicable"} note={result.verification_status === "accepted" ? "Checked locally against hidden constraints" : "No cloud recommendation was accepted"} tone="violet" /></div>
       <section className="panel score-panel"><div className="panel-heading"><div><span className="eyebrow">Cumulative exposure</span><h2>Current protected dimension</h2></div><CircleGauge /></div><div className="bar-list"><div className="bar-row"><span>Architecture</span><div className="bar-track"><i style={{ width: `${risk}%` }} /></div><strong>{risk}</strong></div></div><div className="thresholds"><span><i className="dot safe" /> Policy allow</span><span><i className="dot warning" /> Policy generalise</span><span><i className="dot danger" /> Policy deny</span></div></section>
       <section className="panel audit-panel"><div className="panel-heading"><div><span className="eyebrow">Run evidence</span><h2>Decision accounting</h2></div><BookOpenCheck /></div><dl><div><dt>Risk before</dt><dd>{result.broker_decision.risk_before}</dd></div><div><dt>Disclosure delta</dt><dd>+{result.broker_decision.disclosure_delta}</dd></div><div><dt>Risk after</dt><dd>{risk}</dd></div><div><dt>Budget cost</dt><dd>{result.broker_decision.budget_cost}</dd></div></dl></section>
     </div>
   );
 }
 
-function LedgerView({ result, hasRun }: { result: WorkflowResult; hasRun: boolean }) {
+function LedgerView({ result, hasRun, target }: { result: WorkflowResult; hasRun: boolean; target: { trustZone: string; entity: string } | null }) {
   const previewClaims: LedgerClaim[] = (result.outbound_payload?.disclosures ?? []).flatMap(
     (disclosure) => disclosure.fact_keys.map((key) => ({
       trust_zone_id: result.outbound_payload?.trust_zone_id ?? "local_only",
@@ -248,11 +254,13 @@ function LedgerView({ result, hasRun }: { result: WorkflowResult; hasRun: boolea
   const [ledgerError, setLedgerError] = useState("");
 
   useEffect(() => {
-    if (!hasRun || !result.outbound_payload) return;
-    void getLedger(result.outbound_payload.trust_zone_id)
+    const trustZone = target?.trustZone ?? result.outbound_payload?.trust_zone_id;
+    const entity = target?.entity ?? "project-aurora";
+    if (!hasRun || !trustZone) return;
+    void getLedger(trustZone, entity)
       .then(setClaims)
       .catch((error: unknown) => setLedgerError(error instanceof Error ? error.message : "Ledger unavailable"));
-  }, [hasRun, result]);
+  }, [hasRun, result, target]);
 
   return <section className="panel ledger-panel"><div className="panel-heading"><div><span className="eyebrow">{hasRun ? "Live organisation-wide memory" : "Synthetic preview"}</span><h2>Exposure Ledger</h2><p>Safe representations accumulate across employees inside each provider trust zone.</p></div><Database /></div>{ledgerError && <p className="error-text" role="alert">{ledgerError}</p>}<div className="table-wrap"><table><thead><tr><th>Semantic key</th><th>Safe representation</th><th>Precision</th><th>Trust zone</th><th>Weight</th></tr></thead><tbody>{claims.map((claim) => <tr key={`${claim.trust_zone_id}-${claim.semantic_key}`}><td>{claim.semantic_key}</td><td>{claim.safe_representation}</td><td>{claim.precision.replaceAll("_", " ")}</td><td>{claim.trust_zone_id}</td><td><span className="score-pill">{claim.base_weight}</span></td></tr>)}</tbody></table></div><div className="ledger-note"><Network /><p><b>Cross-employee protection is active.</b> A new employee session resets its budget, but not the provider’s long-term exposure memory.</p></div></section>;
 }
@@ -285,14 +293,23 @@ export function App() {
   const [active, setActive] = useState<ViewName>("Chat");
   const [result, setResult] = useState<WorkflowResult>(preview);
   const [hasRun, setHasRun] = useState(false);
+  const [ledgerTarget, setLedgerTarget] = useState<{ trustZone: string; entity: string } | null>(null);
   const title = useMemo(() => views.find((view) => view.label === active)?.label ?? active, [active]);
   function acceptResult(value: WorkflowResult) {
     setResult(value);
     setHasRun(true);
+    setLedgerTarget(null);
   }
-  function resetDemo() {
+  function acceptScenario(value: ScenarioResult) {
+    setLedgerTarget({ trustZone: value.trust_zone_id, entity: value.protected_entity_id });
+    setHasRun(true);
+  }
+  async function resetDemoState() {
+    if (!window.confirm("Reset all synthetic demo sessions and exposure claims?")) return;
+    await resetDemo();
     setResult(preview);
     setHasRun(false);
+    setLedgerTarget(null);
     setActive("Chat");
   }
   return (
@@ -303,13 +320,13 @@ export function App() {
         <div className="system-status"><span className="status-line"><i /> Offline-ready</span><p>Mock providers active</p><small>No internet required</small></div>
       </aside>
       <main>
-        <header className="topbar"><div><span className="eyebrow">Privacy control room</span><h2>{title}</h2></div><div className="topbar-actions"><span className="synthetic-label"><Sparkles size={14} /> {hasRun ? "Live synthetic run" : "Synthetic preview"}</span><span className="provider-state"><i /> Company Cloud · ready</span><button aria-label="Reset demo" onClick={resetDemo}><RotateCcw size={16} /></button></div></header>
+        <header className="topbar"><div><span className="eyebrow">Privacy control room</span><h2>{title}</h2></div><div className="topbar-actions"><span className="synthetic-label"><Sparkles size={14} /> {hasRun ? "Live synthetic run" : "Synthetic preview"}</span><span className="provider-state"><i /> Company Cloud · ready</span><button aria-label="Reset demo" onClick={() => void resetDemoState()}><RotateCcw size={16} /></button></div></header>
         <div className="content">
           {active === "Chat" && <ChatView result={result} onResult={acceptResult} />}
           {active === "Privacy Pipeline" && <PipelineView result={result} />}
-          {active === "Collaboration" && <CollaborationView result={result} />}
+          {active === "Collaboration" && <CollaborationView result={result} onScenario={acceptScenario} />}
           {active === "Privacy Dashboard" && <DashboardView result={result} />}
-          {active === "Exposure Ledger" && <LedgerView result={result} hasRun={hasRun} />}
+          {active === "Exposure Ledger" && <LedgerView result={result} hasRun={hasRun} target={ledgerTarget} />}
           {active === "Admin / Policy" && <PolicyView />}
         </div>
       </main>

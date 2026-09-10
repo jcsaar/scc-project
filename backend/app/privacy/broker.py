@@ -7,6 +7,7 @@ from app.domain.disclosures import (
     ApprovedDisclosure,
     BrokerDecision,
     DecisionKind,
+    DisclosureCandidate,
     DisclosureProposal,
     PrecisionLevel,
     StrictFrozenModel,
@@ -96,6 +97,12 @@ class PrivacyBroker:
         disclosure_delta = 0
         budget_cost = 0
         released_precision = proposal.requested_precision
+        released = DisclosureCandidate(
+            text=proposal.text,
+            category=proposal.category,
+            precision=proposal.requested_precision,
+            fact_keys=proposal.fact_keys,
+        )
         decision_kind = DecisionKind.ALLOW
         reason_code = "minimum_safe_task"
         reason = "The proposed task contains only the minimum useful abstract context."
@@ -117,7 +124,7 @@ class PrivacyBroker:
                 for claim in stored
             )
             risk_before = self._risk_engine.score(existing).scores.get(context.dimension, 0)
-            candidates = self._candidates(proposal, context, released_precision)
+            candidates = self._candidates(released, context)
             risk_after = self._risk_engine.score((*existing, *candidates)).scores.get(
                 context.dimension, 0
             )
@@ -140,13 +147,31 @@ class PrivacyBroker:
                 )
             if risk_after >= zone.generalise_at:
                 requested_index = self._precision_order.index(proposal.requested_precision)
+                alternatives = {
+                    candidate.precision: candidate
+                    for candidate in proposal.alternatives
+                    if self._precision_order.index(candidate.precision) < requested_index
+                }
                 for precision in reversed(self._precision_order[:requested_index]):
-                    lowered = self._candidates(proposal, context, precision)
+                    alternative = alternatives.get(precision)
+                    if alternative is None:
+                        continue
+                    inspection = self._hard_rules.inspect(
+                        DisclosureInspection(
+                            text=alternative.text,
+                            category=alternative.category,
+                            precision=alternative.precision,
+                        )
+                    )
+                    if inspection.blocked:
+                        continue
+                    lowered = self._candidates(alternative, context)
                     lowered_after = self._risk_engine.score((*existing, *lowered)).scores.get(
                         context.dimension, 0
                     )
                     if lowered_after < zone.generalise_at:
                         released_precision = precision
+                        released = alternative
                         candidates = lowered
                         risk_after = lowered_after
                         disclosure_delta = max(0, risk_after - risk_before)
@@ -173,7 +198,7 @@ class PrivacyBroker:
             decision=decision_kind,
             reason_code=reason_code,
             reason=reason,
-            released_text=proposal.text,
+            released_text=released.text,
             released_precision=released_precision,
             risk_before=risk_before,
             risk_after=risk_after,
@@ -182,10 +207,10 @@ class PrivacyBroker:
         )
         disclosure = ApprovedDisclosure(
             decision_id=decision_id,
-            text=proposal.text,
-            category=proposal.category,
+            text=released.text,
+            category=released.category,
             precision=released_precision,
-            fact_keys=proposal.fact_keys,
+            fact_keys=released.fact_keys,
         )
         evaluation = BrokerEvaluation(decision=decision, approved_disclosures=(disclosure,))
         if context is not None and self._exposure_repository is not None:
@@ -198,10 +223,10 @@ class PrivacyBroker:
                         protected_entity_id=proposal.protected_entity_ids[0],
                         dimension=context.dimension,
                         semantic_key=candidate.semantic_key,
-                        category=proposal.category,
-                        safe_representation=proposal.text,
+                        category=released.category,
+                        safe_representation=released.text,
                         representation_hash=sha256(
-                            f"{candidate.semantic_key}:{proposal.text}".encode()
+                            f"{candidate.semantic_key}:{released.text}".encode()
                         ).hexdigest(),
                         precision=released_precision.value,
                         base_weight=context.base_weight,
@@ -218,16 +243,15 @@ class PrivacyBroker:
 
     @staticmethod
     def _candidates(
-        proposal: DisclosureProposal,
+        disclosure: DisclosureCandidate,
         context: BrokerContext,
-        precision: PrecisionLevel,
     ) -> tuple[RiskClaim, ...]:
         return tuple(
             RiskClaim(
                 semantic_key=semantic_key,
                 dimension=context.dimension,
                 base_weight=context.base_weight,
-                precision=precision,
+                precision=disclosure.precision,
             )
-            for semantic_key in proposal.fact_keys
+            for semantic_key in disclosure.fact_keys
         )

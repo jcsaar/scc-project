@@ -2,7 +2,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
 
-from app.domain.disclosures import DecisionKind, DisclosureProposal, PrecisionLevel
+from app.domain.disclosures import (
+    DecisionKind,
+    DisclosureCandidate,
+    DisclosureProposal,
+    PrecisionLevel,
+)
 from app.domain.policies import PolicyLoader
 from app.ledger.repository import ExposureRepository
 from app.privacy.broker import BrokerContext, PrivacyBroker
@@ -12,6 +17,18 @@ POLICY = Path(__file__).parents[3] / "policy" / "default.yaml"
 
 
 def proposal(key: str, category: str, precision: PrecisionLevel) -> DisclosureProposal:
+    alternatives = (
+        (
+            DisclosureCandidate(
+                text=f"Lower-precision representation of {key}",
+                category=category,
+                precision=PrecisionLevel.APPROXIMATE,
+                fact_keys=(key,),
+            ),
+        )
+        if precision is PrecisionLevel.EXACT
+        else ()
+    )
     return DisclosureProposal(
         text=f"Safe representation of {key}",
         purpose="Evaluate architecture",
@@ -19,6 +36,7 @@ def proposal(key: str, category: str, precision: PrecisionLevel) -> DisclosurePr
         requested_precision=precision,
         protected_entity_ids=("project-aurora",),
         fact_keys=(key,),
+        alternatives=alternatives,
     )
 
 

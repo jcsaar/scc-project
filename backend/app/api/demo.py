@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.disclosures import StrictFrozenModel
 from app.orchestration.scenarios import DemoScenarioRunner
@@ -20,6 +20,7 @@ class DemoScenarioStep(StrictFrozenModel):
 
 class DemoScenarioResult(DemoScenarioSummary):
     protected_entity_id: str
+    trust_zone_id: str
     outcome: str
     steps: tuple[DemoScenarioStep, ...]
 
@@ -43,6 +44,11 @@ SCENARIOS = {
 }
 
 
+class ResetDemoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirmation: str
+
+
 def create_demo_router(runner: DemoScenarioRunner) -> APIRouter:
     router = APIRouter(prefix="/api/demo", tags=["demo"])
 
@@ -59,8 +65,16 @@ def create_demo_router(runner: DemoScenarioRunner) -> APIRouter:
         return DemoScenarioResult(
             **scenario.model_dump(),
             protected_entity_id=execution.protected_entity_id,
+            trust_zone_id=execution.trust_zone_id,
             outcome=execution.outcome,
             steps=tuple(DemoScenarioStep(**step) for step in execution.steps),
         )
+
+    @router.post("/reset")
+    def reset_demo(request: ResetDemoRequest) -> dict[str, str]:
+        if request.confirmation != "RESET SYNTHETIC DEMO":
+            raise HTTPException(status_code=422, detail="Explicit reset confirmation required")
+        runner.reset()
+        return {"status": "reset", "scope": "synthetic_demo_ledger"}
 
     return router

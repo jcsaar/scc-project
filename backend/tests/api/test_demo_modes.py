@@ -50,6 +50,7 @@ async def test_repeatable_demo_scenarios_reach_expected_decisions() -> None:
     transport = httpx.ASGITransport(app=create_app(exposure_repository=repository))
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         listing = await client.get("/api/demo/scenarios")
+        legitimate = await client.post("/api/demo/scenarios/legitimate/run")
         mosaic = await client.post("/api/demo/scenarios/mosaic/run")
         malicious = await client.post("/api/demo/scenarios/malicious_cloud/run")
 
@@ -64,6 +65,31 @@ async def test_repeatable_demo_scenarios_reach_expected_decisions() -> None:
         "generalise",
         "deny",
     ]
+    assert [step["employee"] for step in legitimate.json()["steps"]] == [
+        "Initial",
+        "Clarification",
+    ]
+    assert "changed the cloud advice" in legitimate.json()["outcome"]
+    assert repository.current_claims("company_cloud", "project-aurora")
     assert malicious.json()["steps"][-1]["decision"] == "deny"
     assert malicious.json()["steps"][-1]["risk_after"] >= 70
     assert repository.current_claims("personal_cloud", mosaic.json()["protected_entity_id"])
+
+
+@pytest.mark.anyio
+async def test_demo_reset_requires_confirmation_and_clears_synthetic_ledger() -> None:
+    from app.ledger.repository import ExposureRepository
+
+    repository = ExposureRepository("sqlite://")
+    transport = httpx.ASGITransport(app=create_app(exposure_repository=repository))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        mosaic = await client.post("/api/demo/scenarios/mosaic/run")
+        entity = mosaic.json()["protected_entity_id"]
+        rejected = await client.post("/api/demo/reset", json={"confirmation": "reset"})
+        accepted = await client.post(
+            "/api/demo/reset", json={"confirmation": "RESET SYNTHETIC DEMO"}
+        )
+
+    assert rejected.status_code == 422
+    assert accepted.status_code == 200
+    assert repository.current_claims("personal_cloud", entity) == ()

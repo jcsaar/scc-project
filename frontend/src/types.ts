@@ -49,11 +49,18 @@ export interface WorkflowResult {
       fact_keys: string[];
     }>;
   }>;
+  egress_evidence?: Array<{
+    stage: string;
+    decision: BrokerDecision;
+    payload: WorkflowResult["outbound_payload"];
+  }>;
   broker_decision: BrokerDecision;
   events: WorkflowEvent[];
   mode?: DemoMode;
   exposure_summary?: string;
   session_budget_remaining?: number | null;
+  final_risk?: number;
+  verification_status?: string;
 }
 
 export interface LedgerClaim {
@@ -86,5 +93,7 @@ export interface ScenarioResult {
   name: string;
   description: string;
   outcome: string;
+  protected_entity_id: string;
+  trust_zone_id: string;
   steps: Array<{ employee: string; decision: string; released: string; risk_after: number }>;
 }

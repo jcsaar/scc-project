@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from app.domain.disclosures import DecisionKind, DisclosureProposal, PrecisionLevel
+from app.domain.disclosures import (
+    DecisionKind,
+    DisclosureCandidate,
+    DisclosureProposal,
+    PrecisionLevel,
+)
 from app.domain.policies import PolicyLoader
 from app.ledger.repository import ExposureRepository
 from app.privacy.broker import BrokerContext, PrivacyBroker
@@ -17,12 +22,20 @@ def test_generalise_threshold_reduces_released_precision() -> None:
         policy=PolicyLoader.load(POLICY),
     )
     proposal = DisclosureProposal(
-        text="Mid-sized regulated organisation",
+        text="Exact peak is 18,274 TPS",
         purpose="Synthetic mosaic test",
         category="identity.company_size",
         requested_precision=PrecisionLevel.EXACT,
         protected_entity_ids=("project-aurora",),
         fact_keys=("company_size",),
+        alternatives=(
+            DisclosureCandidate(
+                text="High transaction volume",
+                category="identity.company_size",
+                precision=PrecisionLevel.APPROXIMATE,
+                fact_keys=("company_size",),
+            ),
+        ),
     )
 
     result = broker.evaluate(
@@ -32,4 +45,6 @@ def test_generalise_threshold_reduces_released_precision() -> None:
 
     assert result.decision.decision is DecisionKind.GENERALISE
     assert result.decision.released_precision is not PrecisionLevel.EXACT
+    assert result.decision.released_text == "High transaction volume"
+    assert "18,274" not in result.approved_disclosures[0].text
     assert result.decision.risk_after < 75

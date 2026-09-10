@@ -23,6 +23,13 @@ class PrecisionLevel(StrEnum):
     EXACT = "exact"
 
 
+class DisclosureCandidate(StrictFrozenModel):
+    text: str = Field(min_length=1)
+    category: str = Field(min_length=1)
+    precision: PrecisionLevel
+    fact_keys: tuple[str, ...] = Field(min_length=1)
+
+
 class DisclosureProposal(StrictFrozenModel):
     text: str = Field(min_length=1)
     purpose: str = Field(min_length=1)
@@ -30,13 +37,7 @@ class DisclosureProposal(StrictFrozenModel):
     requested_precision: PrecisionLevel
     protected_entity_ids: tuple[str, ...] = Field(min_length=1)
     fact_keys: tuple[str, ...] = Field(min_length=1)
-
-
-class DisclosureCandidate(StrictFrozenModel):
-    text: str = Field(min_length=1)
-    category: str = Field(min_length=1)
-    precision: PrecisionLevel
-    fact_keys: tuple[str, ...] = Field(min_length=1)
+    alternatives: tuple[DisclosureCandidate, ...] = ()
 
 
 class ApprovedDisclosure(StrictFrozenModel):

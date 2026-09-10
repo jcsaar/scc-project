@@ -1,4 +1,4 @@
-from app.domain.disclosures import DisclosureProposal, PrecisionLevel
+from app.domain.disclosures import DisclosureCandidate, DisclosureProposal, PrecisionLevel
 from app.domain.private import PrivateContext
 from app.domain.providers import CloudRecommendation
 from app.domain.workflow import VerificationResult, VerificationStatus
@@ -22,6 +22,17 @@ class MockLocalModelProvider(LocalModelProvider):
                 "customer_identity",
                 "database_platform",
                 "peak_tps",
+            ),
+            alternatives=(
+                DisclosureCandidate(
+                    text=(
+                        "A large regulated organisation uses a clustered relational database "
+                        "at high transaction volume. Recommend safe contention controls."
+                    ),
+                    category="architecture.contention",
+                    precision=PrecisionLevel.BROAD_CATEGORY,
+                    fact_keys=("customer_identity", "database_platform", "peak_tps"),
+                ),
             ),
         )
 

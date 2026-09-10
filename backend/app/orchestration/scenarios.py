@@ -4,10 +4,11 @@ from uuid import uuid4
 import yaml
 
 from app.core.limits import CloudRequestLimits, validate_cloud_context_request
-from app.domain.disclosures import DisclosureProposal, PrecisionLevel
+from app.domain.disclosures import DisclosureCandidate, DisclosureProposal, PrecisionLevel
 from app.domain.policies import Policy
 from app.domain.providers import ApprovedCloudPayload
 from app.ledger.repository import ExposureRepository
+from app.orchestration.state_machine import TrustSplitWorkflow
 from app.privacy.broker import BrokerContext, BrokerEvaluation, PrivacyBroker
 from app.privacy.risk import RiskEngine, SynergyRule
 from app.providers.cloud.malicious_mock import MaliciousMockCloudProvider
@@ -15,9 +16,14 @@ from app.providers.cloud.malicious_mock import MaliciousMockCloudProvider
 
 class ScenarioExecution:
     def __init__(
-        self, protected_entity_id: str, outcome: str, steps: list[dict[str, object]]
+        self,
+        protected_entity_id: str,
+        trust_zone_id: str,
+        outcome: str,
+        steps: list[dict[str, object]],
     ) -> None:
         self.protected_entity_id = protected_entity_id
+        self.trust_zone_id = trust_zone_id
         self.outcome = outcome
         self.steps = steps
 
@@ -28,18 +34,23 @@ class DemoScenarioRunner:
         repository: ExposureRepository,
         policy: Policy,
         scenario_directory: Path,
+        workflow: TrustSplitWorkflow,
     ) -> None:
         self._repository = repository
         self._policy = policy
         self._scenario_directory = scenario_directory
+        self._workflow = workflow
 
     def update_policy(self, policy: Policy) -> None:
         self._policy = policy
 
+    def reset(self) -> None:
+        self._repository.reset_synthetic_demo()
+
     async def run(self, scenario_id: str) -> ScenarioExecution:
         self._load(scenario_id)
         if scenario_id == "legitimate":
-            return self._legitimate()
+            return await self._legitimate()
         if scenario_id == "mosaic":
             return self._mosaic()
         if scenario_id == "malicious_cloud":
@@ -55,24 +66,32 @@ class DemoScenarioRunner:
             raise ValueError("Demo scenarios must be explicitly marked synthetic")
         return definition
 
-    def _legitimate(self) -> ScenarioExecution:
-        entity = f"synthetic-legitimate-{uuid4()}"
+    async def _legitimate(self) -> ScenarioExecution:
+        entity = "project-aurora"
         session = self._session("alice", "company_cloud")
-        broker = PrivacyBroker(exposure_repository=self._repository, policy=self._policy)
-        evaluation = broker.evaluate(
-            self._proposal(
-                "Strong consistency required: yes",
-                "architecture.consistency",
-                PrecisionLevel.BOOLEAN,
-                entity,
-                "consistency_requirement",
-            ),
-            BrokerContext(session, "company_cloud", "architecture", 20),
+        result = await self._workflow.run(
+            "Recommend a safe scale-out design.",
+            entity,
+            "company_cloud",
+            session_id=session,
         )
+        steps = [
+            {
+                "employee": evidence.stage.title(),
+                "decision": evidence.decision.decision.value,
+                "released": evidence.decision.released_text or "Nothing",
+                "risk_after": evidence.decision.risk_after,
+            }
+            for evidence in result.egress_evidence
+        ]
         return ScenarioExecution(
             entity,
-            "Useful advice returned while the hidden constraint stayed local.",
-            [self._step("Alice", evaluation)],
+            "company_cloud",
+            (
+                "A Boolean oracle answer changed the cloud advice while exact source facts "
+                "stayed local."
+            ),
+            steps,
         )
 
     def _mosaic(self) -> ScenarioExecution:
@@ -107,6 +126,7 @@ class DemoScenarioRunner:
             steps.append(self._step(employee, evaluation))
         return ScenarioExecution(
             entity,
+            "personal_cloud",
             "Dana's request was denied using the shared trust-zone ledger.",
             steps,
         )
@@ -157,6 +177,7 @@ class DemoScenarioRunner:
             )
         return ScenarioExecution(
             entity,
+            "personal_cloud",
             "The cumulative-risk threshold stopped the narrowing sequence.",
             steps,
         )
@@ -179,6 +200,20 @@ class DemoScenarioRunner:
         entity: str,
         key: str,
     ) -> DisclosureProposal:
+        alternatives = ()
+        if precision in (
+            PrecisionLevel.EXACT,
+            PrecisionLevel.APPROXIMATE,
+            PrecisionLevel.BOUNDED_RANGE,
+        ):
+            alternatives = (
+                DisclosureCandidate(
+                    text=f"Lower-precision {category.replace('.', ' ')} indicator",
+                    category=category,
+                    precision=PrecisionLevel.COARSE_RANGE,
+                    fact_keys=(key,),
+                ),
+            )
         return DisclosureProposal(
             text=text,
             purpose="Execute an explicitly synthetic security scenario",
@@ -186,6 +221,7 @@ class DemoScenarioRunner:
             requested_precision=precision,
             protected_entity_ids=(entity,),
             fact_keys=(key,),
+            alternatives=alternatives,
         )
 
     @staticmethod

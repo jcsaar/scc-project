@@ -67,6 +67,7 @@ def create_app(
         exposure_repository,
         policy_store.current,
         Path(__file__).resolve().parents[2] / "data" / "demo_scenarios",
+        workflow,
     )
 
     app.include_router(
@@ -83,6 +84,7 @@ def create_app(
     def activate_policy(policy: Policy) -> None:
         if active_broker is not None:
             active_broker.update_policy(policy)
+        workflow.update_max_clarification_rounds(policy.max_clarification_rounds)
         scenario_runner.update_policy(policy)
 
     app.include_router(

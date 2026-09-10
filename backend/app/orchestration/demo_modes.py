@@ -94,6 +94,8 @@ class DemoModeRunner:
             ),
             events=self._events("No cloud disclosure.", includes_cloud=False),
             exposure_summary="Zero external exposure; reduced cloud reasoning utility.",
+            final_risk=0,
+            verification_status="local_only",
         )
 
     def _simulated_cloud(
@@ -149,4 +151,6 @@ class DemoModeRunner:
                 if cloud_only
                 else "Names removed, but exact numeric and relational clues remain."
             ),
+            final_risk=risk,
+            verification_status="not_applicable",
         )

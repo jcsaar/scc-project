@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from pydantic import Field
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import create_engine, delete, event, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -168,3 +168,10 @@ class ExposureRepository:
             if row is None:
                 raise LedgerIntegrityError("Session not found")
             return row.remaining_budget
+
+    def reset_synthetic_demo(self) -> None:
+        """Clear the local POC ledger after an explicitly confirmed demo reset."""
+        with Session(self._engine) as session, session.begin():
+            session.execute(delete(ExposureEventRow))
+            session.execute(delete(ExposureClaimRow))
+            session.execute(delete(SessionRow))

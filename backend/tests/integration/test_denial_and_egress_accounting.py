@@ -101,6 +101,14 @@ async def test_every_cloud_message_is_returned_and_added_to_ledger() -> None:
 
     assert len(provider.payloads) == 3
     assert len(result.outbound_payloads) == 3
+    assert [item.stage for item in result.egress_evidence] == [
+        "initial",
+        "clarification",
+        "revision",
+    ]
+    assert all(item.payload is not None for item in result.egress_evidence)
+    assert result.final_risk == max(item.decision.risk_after for item in result.egress_evidence)
+    assert result.verification_status == "accepted"
     keys = {
         claim.semantic_key for claim in repository.current_claims("company_cloud", "project-aurora")
     }

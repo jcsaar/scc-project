@@ -47,12 +47,25 @@ export async function runScenario(id: string): Promise<ScenarioResult> {
   );
 }
 
-export async function getLedger(trustZone: string): Promise<LedgerClaim[]> {
+export async function getLedger(
+  trustZone: string,
+  protectedEntityId = "project-aurora",
+): Promise<LedgerClaim[]> {
   const query = new URLSearchParams({
     trust_zone_id: trustZone,
-    protected_entity_id: "project-aurora",
+    protected_entity_id: protectedEntityId,
   });
   return checked<LedgerClaim[]>(await fetch(`/api/ledger?${query}`));
+}
+
+export async function resetDemo(): Promise<void> {
+  await checked(
+    await fetch("/api/demo/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmation: "RESET SYNTHETIC DEMO" }),
+    }),
+  );
 }
 
 export async function getPolicy(): Promise<Policy> {

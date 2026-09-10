@@ -1,3 +1,5 @@
+from threading import RLock
+
 import httpx
 from pydantic import Field
 
@@ -46,15 +48,24 @@ class CloudPayloadEvidence(StrictFrozenModel):
         )
 
 
+class EgressEvidence(StrictFrozenModel):
+    stage: str = Field(min_length=1)
+    decision: BrokerDecision
+    payload: CloudPayloadEvidence | None = None
+
+
 class WorkflowResult(StrictFrozenModel):
     final_answer: str = Field(min_length=1)
     outbound_payload: CloudPayloadEvidence | None
     outbound_payloads: tuple[CloudPayloadEvidence, ...] = ()
+    egress_evidence: tuple[EgressEvidence, ...] = ()
     broker_decision: BrokerDecision
     events: tuple[WorkflowEvent, ...] = Field(min_length=1)
     mode: str = "trustsplit"
     exposure_summary: str = "Broker-mediated minimum-information disclosure."
     session_budget_remaining: int | None = Field(default=None, ge=0)
+    final_risk: int = Field(default=0, ge=0, le=100)
+    verification_status: str = "not_applicable"
 
 
 class TrustSplitWorkflow:
@@ -71,9 +82,14 @@ class TrustSplitWorkflow:
         self._broker = broker
         self._cloud_provider = cloud_provider
         self._max_clarification_rounds = max_clarification_rounds
+        self._config_lock = RLock()
         self._oracle = LocalOracle()
         self._request_limits = CloudRequestLimits()
         self._verifier = LocalVerifier()
+
+    def update_max_clarification_rounds(self, value: int) -> None:
+        with self._config_lock:
+            self._max_clarification_rounds = value
 
     async def run(
         self,
@@ -84,6 +100,9 @@ class TrustSplitWorkflow:
     ) -> WorkflowResult:
         events = EventRecorder()
         outbound_payloads: list[CloudPayloadEvidence] = []
+        egress_evidence: list[EgressEvidence] = []
+        with self._config_lock:
+            max_clarification_rounds = self._max_clarification_rounds
         events.emit(WorkflowState.RECEIVE_PROMPT, "employee", "Private prompt received locally.")
 
         context = self._private_repository.load_project(project_id)
@@ -112,6 +131,7 @@ class TrustSplitWorkflow:
         )
         evaluation = self._broker.evaluate(proposal, broker_context)
         if not evaluation.approved_disclosures:
+            egress_evidence.append(EgressEvidence(stage="initial", decision=evaluation.decision))
             events.emit(
                 WorkflowState.BROKER_VALIDATE_OUTBOUND,
                 "privacy_broker",
@@ -127,8 +147,11 @@ class TrustSplitWorkflow:
                 final_answer=self._verifier.local_fallback(),
                 outbound_payload=None,
                 outbound_payloads=(),
+                egress_evidence=tuple(egress_evidence),
                 broker_decision=evaluation.decision,
                 events=events.events,
+                final_risk=evaluation.decision.risk_after,
+                verification_status=VerificationStatus.LOCAL_ONLY.value,
             )
         events.emit(
             WorkflowState.BROKER_VALIDATE_OUTBOUND,
@@ -143,6 +166,9 @@ class TrustSplitWorkflow:
         )
         primary_evidence = CloudPayloadEvidence.from_approved(payload)
         outbound_payloads.append(primary_evidence)
+        egress_evidence.append(
+            EgressEvidence(stage="initial", decision=evaluation.decision, payload=primary_evidence)
+        )
         try:
             recommendation = await self._cloud_provider.send(payload)
         except (httpx.TimeoutException, TimeoutError):
@@ -156,8 +182,11 @@ class TrustSplitWorkflow:
                 final_answer=self._verifier.local_fallback(),
                 outbound_payload=primary_evidence,
                 outbound_payloads=tuple(outbound_payloads),
+                egress_evidence=tuple(egress_evidence),
                 broker_decision=evaluation.decision,
                 events=events.events,
+                final_risk=max(item.decision.risk_after for item in egress_evidence),
+                verification_status=VerificationStatus.LOCAL_ONLY.value,
             )
         events.emit(
             WorkflowState.CLOUD_REASONING,
@@ -166,10 +195,7 @@ class TrustSplitWorkflow:
         )
 
         clarification_rounds = 0
-        while (
-            recommendation.context_requests
-            and clarification_rounds < self._max_clarification_rounds
-        ):
+        while recommendation.context_requests and clarification_rounds < max_clarification_rounds:
             request = recommendation.context_requests[0]
             events.emit(
                 WorkflowState.CLOUD_REQUEST_CONTEXT,
@@ -213,13 +239,24 @@ class TrustSplitWorkflow:
                 "The local oracle answer was independently checked.",
             )
             if not oracle_evaluation.approved_disclosures:
+                egress_evidence.append(
+                    EgressEvidence(stage="clarification", decision=oracle_evaluation.decision)
+                )
                 break
             oracle_payload = ApprovedCloudPayload(
                 provider_name=self._cloud_provider.provider_name,
                 trust_zone_id=trust_zone_id,
                 disclosures=oracle_evaluation.approved_disclosures,
             )
-            outbound_payloads.append(CloudPayloadEvidence.from_approved(oracle_payload))
+            oracle_evidence = CloudPayloadEvidence.from_approved(oracle_payload)
+            outbound_payloads.append(oracle_evidence)
+            egress_evidence.append(
+                EgressEvidence(
+                    stage="clarification",
+                    decision=oracle_evaluation.decision,
+                    payload=oracle_evidence,
+                )
+            )
             try:
                 recommendation = await self._cloud_provider.send(oracle_payload)
             except (httpx.TimeoutException, TimeoutError):
@@ -233,8 +270,11 @@ class TrustSplitWorkflow:
                     final_answer=self._verifier.local_fallback(),
                     outbound_payload=primary_evidence,
                     outbound_payloads=tuple(outbound_payloads),
+                    egress_evidence=tuple(egress_evidence),
                     broker_decision=evaluation.decision,
                     events=events.events,
+                    final_risk=max(item.decision.risk_after for item in egress_evidence),
+                    verification_status=VerificationStatus.LOCAL_ONLY.value,
                 )
             clarification_rounds += 1
             events.emit(
@@ -264,6 +304,7 @@ class TrustSplitWorkflow:
             )
             revision = self._broker.evaluate(revision_proposal, revision_context)
             if not revision.approved_disclosures:
+                egress_evidence.append(EgressEvidence(stage="revision", decision=revision.decision))
                 events.emit(
                     WorkflowState.LOCAL_SYNTHESIS,
                     "local_ai",
@@ -275,15 +316,26 @@ class TrustSplitWorkflow:
                     final_answer=final_answer,
                     outbound_payload=primary_evidence,
                     outbound_payloads=tuple(outbound_payloads),
+                    egress_evidence=tuple(egress_evidence),
                     broker_decision=evaluation.decision,
                     events=events.events,
+                    final_risk=max(item.decision.risk_after for item in egress_evidence),
+                    verification_status=VerificationStatus.LOCAL_ONLY.value,
                 )
             revision_payload = ApprovedCloudPayload(
                 provider_name=self._cloud_provider.provider_name,
                 trust_zone_id=trust_zone_id,
                 disclosures=revision.approved_disclosures,
             )
-            outbound_payloads.append(CloudPayloadEvidence.from_approved(revision_payload))
+            revision_evidence = CloudPayloadEvidence.from_approved(revision_payload)
+            outbound_payloads.append(revision_evidence)
+            egress_evidence.append(
+                EgressEvidence(
+                    stage="revision",
+                    decision=revision.decision,
+                    payload=revision_evidence,
+                )
+            )
             events.emit(
                 WorkflowState.CLOUD_REVISION,
                 "privacy_broker",
@@ -304,14 +356,23 @@ class TrustSplitWorkflow:
                     "Cloud revision unavailable; completed locally.",
                 )
                 final_answer = self._verifier.local_fallback()
+            final_verification_status = (
+                VerificationStatus.ACCEPTED.value
+                if final_answer != self._verifier.local_fallback()
+                else VerificationStatus.LOCAL_ONLY.value
+            )
         else:
             final_answer = verification.final_text or recommendation.text
+            final_verification_status = VerificationStatus.ACCEPTED.value
 
         events.emit(WorkflowState.FINAL, "local_ai", "Final locally verified answer ready.")
         return WorkflowResult(
             final_answer=final_answer,
             outbound_payload=primary_evidence,
             outbound_payloads=tuple(outbound_payloads),
+            egress_evidence=tuple(egress_evidence),
             broker_decision=evaluation.decision,
             events=events.events,
+            final_risk=max(item.decision.risk_after for item in egress_evidence),
+            verification_status=final_verification_status,
         )

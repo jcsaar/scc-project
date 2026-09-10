@@ -34,7 +34,10 @@ class MockCloudProvider(CloudProvider):
             "yes"
         ):
             return CloudRecommendation(
-                text="Use eventual consistency for the authoritative write path."
+                text=(
+                    "Partition write ownership around a stable business key and preserve "
+                    "strong consistency for authoritative writes."
+                )
             )
         return CloudRecommendation(
             text=(
