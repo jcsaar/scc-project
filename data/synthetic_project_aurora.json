@@ -1,0 +1,133 @@
+{
+  "dataset_name": "TrustSplit Project Aurora",
+  "synthetic_demo_data": true,
+  "notice": "SYNTHETIC DEMO DATA - NOT REAL CUSTOMER OR COMPANY INFORMATION",
+  "projects": [
+    {
+      "project_id": "project-aurora",
+      "display_name": "Project Aurora",
+      "classification": "CONFIDENTIAL",
+      "facts": [
+        {
+          "semantic_key": "customer_identity",
+          "category": "identity.customer",
+          "classification": "RESTRICTED",
+          "raw_value": "Northstar Financial Group",
+          "generalizations": {
+            "broad_category": "A large regulated financial organisation"
+          }
+        },
+        {
+          "semantic_key": "country",
+          "category": "identity.geography",
+          "classification": "CONFIDENTIAL",
+          "raw_value": "Singapore",
+          "generalizations": {
+            "broad_category": "Southeast Asia"
+          }
+        },
+        {
+          "semantic_key": "industry",
+          "category": "identity.industry",
+          "classification": "CONFIDENTIAL",
+          "raw_value": "Financial services",
+          "generalizations": {
+            "broad_category": "A regulated industry"
+          }
+        },
+        {
+          "semantic_key": "budget",
+          "category": "financial.project_budget",
+          "classification": "CONFIDENTIAL",
+          "raw_value": "S$28.4 million",
+          "generalizations": {
+            "broad_category": "A large enterprise programme"
+          }
+        },
+        {
+          "semantic_key": "database_platform",
+          "category": "architecture.database",
+          "classification": "CONFIDENTIAL",
+          "raw_value": "Oracle RAC",
+          "generalizations": {
+            "broad_category": "A clustered relational database"
+          }
+        },
+        {
+          "semantic_key": "peak_tps",
+          "category": "operations.throughput",
+          "classification": "CONFIDENTIAL",
+          "raw_value": 18274,
+          "generalizations": {
+            "broad_category": "A high-throughput environment",
+            "coarse_range": "More than 10,000 TPS",
+            "bounded_range": "15k-20k TPS",
+            "approximate": "Approximately 18,000 TPS",
+            "exact": "18,274 TPS"
+          }
+        },
+        {
+          "semantic_key": "internal_services",
+          "category": "architecture.internal_services",
+          "classification": "CONFIDENTIAL",
+          "raw_value": ["SettlementEngine", "LedgerWriter", "AccountPositionDB"],
+          "generalizations": {
+            "broad_category": "Two write-heavy services contend over the same logical record set"
+          }
+        },
+        {
+          "semantic_key": "consistency_requirement",
+          "category": "architecture.consistency",
+          "classification": "CONFIDENTIAL",
+          "raw_value": "strong",
+          "generalizations": {
+            "boolean": "Strong consistency must be preserved"
+          }
+        },
+        {
+          "semantic_key": "node_expansion_allowed",
+          "category": "contract.licensing",
+          "classification": "CONFIDENTIAL",
+          "raw_value": false,
+          "generalizations": {
+            "boolean": "Horizontal database node expansion is unavailable"
+          }
+        },
+        {
+          "semantic_key": "natural_partition_key",
+          "category": "architecture.partitioning",
+          "classification": "CONFIDENTIAL",
+          "raw_value": "CustomerAccountID",
+          "generalizations": {
+            "boolean": "A stable natural partitioning key exists"
+          }
+        },
+        {
+          "semantic_key": "maximum_queue_delay_ms",
+          "category": "operations.latency",
+          "classification": "CONFIDENTIAL",
+          "raw_value": 500,
+          "generalizations": {
+            "broad_category": "Short bounded asynchronous queueing is permitted"
+          }
+        },
+        {
+          "semantic_key": "project_codename",
+          "category": "identity.project",
+          "classification": "RESTRICTED",
+          "raw_value": "Aurora",
+          "generalizations": {}
+        },
+        {
+          "semantic_key": "launch_period",
+          "category": "operations.timeline",
+          "classification": "CONFIDENTIAL",
+          "raw_value": "November",
+          "generalizations": {
+            "broad_category": "Later in the calendar year"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,2 +1,1 @@
 """TrustSplit backend package."""
-
