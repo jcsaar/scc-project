@@ -1,0 +1,1 @@
+"""Persistent external exposure ledger."""
