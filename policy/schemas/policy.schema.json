@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrustSplit policy",
+  "type": "object",
+  "required": ["max_clarification_rounds", "hard_block_categories", "trust_zones"],
+  "properties": {
+    "max_clarification_rounds": {"type": "integer", "minimum": 1, "maximum": 10},
+    "hard_block_categories": {"type": "array", "items": {"type": "string"}},
+    "trust_zones": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["classification", "disclosure_budget", "retention_days", "generalise_at", "deny_at"]
+      }
+    }
+  },
+  "additionalProperties": false
+}

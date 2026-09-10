@@ -1,0 +1,25 @@
+max_clarification_rounds: 4
+hard_block_categories:
+  - credential
+  - private_key
+  - exact_customer_identity
+  - raw_restricted_document
+trust_zones:
+  company_cloud:
+    classification: approved
+    disclosure_budget: 100
+    retention_days: 30
+    generalise_at: 70
+    deny_at: 90
+  personal_cloud:
+    classification: personal
+    disclosure_budget: 60
+    retention_days: null
+    generalise_at: 55
+    deny_at: 75
+  unapproved_cloud:
+    classification: unapproved
+    disclosure_budget: 20
+    retention_days: null
+    generalise_at: 30
+    deny_at: 50
