@@ -11,12 +11,8 @@ from app.orchestration.state_machine import (
 class DemoModeRunner:
     """Runs labelled, synthetic comparison modes without contacting a real provider."""
 
-    _synthetic_exact = (
-        "Project Aurora serves Customer Northstar on Oracle RAC at 18,274 TPS."
-    )
-    _redacted = (
-        "Project [REDACTED] serves Customer [REDACTED] on [REDACTED] at 18,274 TPS."
-    )
+    _synthetic_exact = "Project Aurora serves Customer Northstar on Oracle RAC at 18,274 TPS."
+    _redacted = "Project [REDACTED] serves Customer [REDACTED] on [REDACTED] at 18,274 TPS."
 
     def __init__(self, trustsplit: TrustSplitWorkflow) -> None:
         self._trustsplit = trustsplit
@@ -120,9 +116,7 @@ class DemoModeRunner:
                         text=disclosed_text,
                         category="comparison.synthetic",
                         precision=(
-                            PrecisionLevel.EXACT
-                            if cloud_only
-                            else PrecisionLevel.APPROXIMATE
+                            PrecisionLevel.EXACT if cloud_only else PrecisionLevel.APPROXIMATE
                         ),
                         fact_keys=("comparison.synthetic_payload",),
                     ),
@@ -139,9 +133,7 @@ class DemoModeRunner:
                 ),
                 released_text=disclosed_text,
                 released_precision=(
-                    PrecisionLevel.EXACT
-                    if cloud_only
-                    else PrecisionLevel.APPROXIMATE
+                    PrecisionLevel.EXACT if cloud_only else PrecisionLevel.APPROXIMATE
                 ),
                 risk_before=0,
                 risk_after=risk,

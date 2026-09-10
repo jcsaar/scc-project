@@ -53,6 +53,12 @@ async def test_offline_workflow_exposes_only_the_safe_cloud_payload() -> None:
         WorkflowState.CREATE_SAFE_TASK,
         WorkflowState.BROKER_VALIDATE_OUTBOUND,
         WorkflowState.CLOUD_REASONING,
+        WorkflowState.CLOUD_REQUEST_CONTEXT,
+        WorkflowState.BROKER_VALIDATE_QUERY,
+        WorkflowState.LOCAL_ORACLE,
+        WorkflowState.BROKER_VALIDATE_RESPONSE,
+        WorkflowState.CLOUD_CONTINUE,
         WorkflowState.LOCAL_VERIFY,
+        WorkflowState.CLOUD_REVISION,
         WorkflowState.FINAL,
     ]

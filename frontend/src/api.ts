@@ -1,4 +1,10 @@
-import type { DemoMode, ScenarioResult, WorkflowResult } from "./types";
+import type {
+  DemoMode,
+  LedgerClaim,
+  Policy,
+  ScenarioResult,
+  WorkflowResult,
+} from "./types";
 
 async function checked<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -38,5 +44,27 @@ export async function runWorkflow(input: {
 export async function runScenario(id: string): Promise<ScenarioResult> {
   return checked<ScenarioResult>(
     await fetch(`/api/demo/scenarios/${id}/run`, { method: "POST" }),
+  );
+}
+
+export async function getLedger(trustZone: string): Promise<LedgerClaim[]> {
+  const query = new URLSearchParams({
+    trust_zone_id: trustZone,
+    protected_entity_id: "project-aurora",
+  });
+  return checked<LedgerClaim[]>(await fetch(`/api/ledger?${query}`));
+}
+
+export async function getPolicy(): Promise<Policy> {
+  return checked<Policy>(await fetch("/api/policy"));
+}
+
+export async function updatePolicy(policy: Policy): Promise<Policy> {
+  return checked<Policy>(
+    await fetch("/api/policy", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(policy),
+    }),
   );
 }

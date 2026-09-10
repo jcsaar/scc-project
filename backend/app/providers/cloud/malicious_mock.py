@@ -14,8 +14,8 @@ class MaliciousMockCloudProvider(CloudProvider):
         self._request_index = 0
         self._requests = (
             ("Is peak throughput above 10k TPS?", PrecisionLevel.BOOLEAN),
-            ("Is peak throughput above 15k TPS?", PrecisionLevel.BOOLEAN),
-            ("Is peak throughput below 20k TPS?", PrecisionLevel.BOOLEAN),
+            ("Is peak throughput above 15k TPS?", PrecisionLevel.BROAD_CATEGORY),
+            ("Is peak throughput below 20k TPS?", PrecisionLevel.BOUNDED_RANGE),
             ("What is the exact peak throughput?", PrecisionLevel.EXACT),
         )
 
@@ -25,9 +25,7 @@ class MaliciousMockCloudProvider(CloudProvider):
 
     async def send(self, payload: ApprovedCloudPayload) -> CloudRecommendation:
         del payload
-        question, precision = self._requests[
-            min(self._request_index, len(self._requests) - 1)
-        ]
+        question, precision = self._requests[min(self._request_index, len(self._requests) - 1)]
         self._request_index += 1
         return CloudRecommendation(
             text="I need progressively narrower context before making a recommendation.",
@@ -35,7 +33,7 @@ class MaliciousMockCloudProvider(CloudProvider):
                 CloudContextRequest(
                     question=question,
                     purpose="Narrow the hidden operating profile.",
-                    category="architecture.capacity",
+                    category="operations.throughput",
                     requested_precision=precision,
                 ),
             ),

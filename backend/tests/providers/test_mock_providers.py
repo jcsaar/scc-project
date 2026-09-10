@@ -31,8 +31,8 @@ def test_mock_local_provider_semantically_reconstructs_the_private_task() -> Non
     )
 
     assert "15k-20k transactions per second" in proposal.text
-    assert "Strong consistency must be preserved" in proposal.text
-    assert "Horizontal node expansion is contractually unavailable" in proposal.text
+    assert "Strong consistency must be preserved" not in proposal.text
+    assert "Horizontal node expansion is contractually unavailable" not in proposal.text
     assert not any(marker in proposal.text for marker in PRIVATE_MARKERS)
 
 
@@ -68,4 +68,5 @@ async def test_mock_cloud_provider_records_only_the_approved_payload() -> None:
     recommendation = await provider.send(payload)
 
     assert provider.captured_payloads == [payload]
-    assert "strong consistency" in recommendation.text.lower()
+    assert "eventual consistency" in recommendation.text.lower()
+    assert recommendation.context_requests[0].requested_precision is PrecisionLevel.BOOLEAN

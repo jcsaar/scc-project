@@ -17,6 +17,12 @@ test("comparison modes truthfully show exposure", async ({ page }) => {
   await expect(page.getByText(/18,274 TPS/)).toBeVisible();
   await expect(page.getByText("ALLOW")).toBeVisible();
 
+  await page.getByLabel("Mode").selectOption("basic_redaction");
+  await page.getByRole("button", { name: "Run safely" }).click();
+  await expect(page.getByText(/18,274 TPS/)).toBeVisible();
+  await expect(page.getByText(/Project \[REDACTED\] serves Customer \[REDACTED\]/)).toBeVisible();
+  await expect(page.getByText(/Northstar/)).not.toBeVisible();
+
   await page.getByLabel("Mode").selectOption("local_only");
   await page.getByRole("button", { name: "Run safely" }).click();
   await expect(page.getByText("Nothing left the device in Local Only mode.")).toBeVisible();

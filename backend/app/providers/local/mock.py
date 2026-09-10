@@ -11,9 +11,8 @@ class MockLocalModelProvider(LocalModelProvider):
         return DisclosureProposal(
             text=(
                 "A large regulated financial organisation operates a clustered relational "
-                "database at 15k-20k transactions per second. Horizontal node expansion is "
-                "contractually unavailable. Strong consistency must be preserved. Recommend "
-                "approaches for reducing write contention."
+                "database at 15k-20k transactions per second. Recommend approaches for reducing "
+                "write contention while identifying any constraints that must be checked locally."
             ),
             purpose="Recommend database contention controls",
             category="architecture.contention",
@@ -23,8 +22,6 @@ class MockLocalModelProvider(LocalModelProvider):
                 "customer_identity",
                 "database_platform",
                 "peak_tps",
-                "node_expansion_allowed",
-                "consistency_requirement",
             ),
         )
 

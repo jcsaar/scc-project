@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from fastapi import APIRouter
 
 from app.domain.policies import Policy
@@ -16,7 +18,9 @@ class PolicyStore:
         return policy
 
 
-def create_policy_router(store: PolicyStore) -> APIRouter:
+def create_policy_router(
+    store: PolicyStore, on_replace: Callable[[Policy], None] | None = None
+) -> APIRouter:
     router = APIRouter(prefix="/api/policy", tags=["policy"])
 
     @router.get("", response_model=Policy)
@@ -25,6 +29,9 @@ def create_policy_router(store: PolicyStore) -> APIRouter:
 
     @router.put("", response_model=Policy)
     def put_policy(policy: Policy) -> Policy:
-        return store.replace(policy)
+        updated = store.replace(policy)
+        if on_replace is not None:
+            on_replace(updated)
+        return updated
 
     return router

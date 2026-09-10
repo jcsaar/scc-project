@@ -49,10 +49,12 @@ class CloudPayloadEvidence(StrictFrozenModel):
 class WorkflowResult(StrictFrozenModel):
     final_answer: str = Field(min_length=1)
     outbound_payload: CloudPayloadEvidence | None
+    outbound_payloads: tuple[CloudPayloadEvidence, ...] = ()
     broker_decision: BrokerDecision
     events: tuple[WorkflowEvent, ...] = Field(min_length=1)
     mode: str = "trustsplit"
     exposure_summary: str = "Broker-mediated minimum-information disclosure."
+    session_budget_remaining: int | None = Field(default=None, ge=0)
 
 
 class TrustSplitWorkflow:
@@ -81,6 +83,7 @@ class TrustSplitWorkflow:
         session_id: str | None = None,
     ) -> WorkflowResult:
         events = EventRecorder()
+        outbound_payloads: list[CloudPayloadEvidence] = []
         events.emit(WorkflowState.RECEIVE_PROMPT, "employee", "Private prompt received locally.")
 
         context = self._private_repository.load_project(project_id)
@@ -108,6 +111,25 @@ class TrustSplitWorkflow:
             else None
         )
         evaluation = self._broker.evaluate(proposal, broker_context)
+        if not evaluation.approved_disclosures:
+            events.emit(
+                WorkflowState.BROKER_VALIDATE_OUTBOUND,
+                "privacy_broker",
+                "The proposed cloud task was denied.",
+            )
+            events.emit(
+                WorkflowState.LOCAL_SYNTHESIS,
+                "local_ai",
+                "Disclosure denied; completed locally.",
+            )
+            events.emit(WorkflowState.FINAL, "local_ai", "Final local-only answer ready.")
+            return WorkflowResult(
+                final_answer=self._verifier.local_fallback(),
+                outbound_payload=None,
+                outbound_payloads=(),
+                broker_decision=evaluation.decision,
+                events=events.events,
+            )
         events.emit(
             WorkflowState.BROKER_VALIDATE_OUTBOUND,
             "privacy_broker",
@@ -119,6 +141,8 @@ class TrustSplitWorkflow:
             trust_zone_id=trust_zone_id,
             disclosures=evaluation.approved_disclosures,
         )
+        primary_evidence = CloudPayloadEvidence.from_approved(payload)
+        outbound_payloads.append(primary_evidence)
         try:
             recommendation = await self._cloud_provider.send(payload)
         except (httpx.TimeoutException, TimeoutError):
@@ -130,7 +154,8 @@ class TrustSplitWorkflow:
             events.emit(WorkflowState.FINAL, "local_ai", "Final local-only answer ready.")
             return WorkflowResult(
                 final_answer=self._verifier.local_fallback(),
-                outbound_payload=CloudPayloadEvidence.from_approved(payload),
+                outbound_payload=primary_evidence,
+                outbound_payloads=tuple(outbound_payloads),
                 broker_decision=evaluation.decision,
                 events=events.events,
             )
@@ -171,7 +196,17 @@ class TrustSplitWorkflow:
                 "local_ai",
                 "The local oracle proposed a minimum-information answer.",
             )
-            oracle_evaluation = self._broker.evaluate(oracle_proposal)
+            oracle_context = (
+                BrokerContext(
+                    session_id=session_id,
+                    trust_zone_id=trust_zone_id,
+                    dimension=oracle_proposal.category.split(".", 1)[0],
+                    base_weight=12,
+                )
+                if session_id is not None
+                else None
+            )
+            oracle_evaluation = self._broker.evaluate(oracle_proposal, oracle_context)
             events.emit(
                 WorkflowState.BROKER_VALIDATE_RESPONSE,
                 "privacy_broker",
@@ -184,7 +219,23 @@ class TrustSplitWorkflow:
                 trust_zone_id=trust_zone_id,
                 disclosures=oracle_evaluation.approved_disclosures,
             )
-            recommendation = await self._cloud_provider.send(oracle_payload)
+            outbound_payloads.append(CloudPayloadEvidence.from_approved(oracle_payload))
+            try:
+                recommendation = await self._cloud_provider.send(oracle_payload)
+            except (httpx.TimeoutException, TimeoutError):
+                events.emit(
+                    WorkflowState.LOCAL_SYNTHESIS,
+                    "local_ai",
+                    "Cloud clarification unavailable; completed locally.",
+                )
+                events.emit(WorkflowState.FINAL, "local_ai", "Final local-only answer ready.")
+                return WorkflowResult(
+                    final_answer=self._verifier.local_fallback(),
+                    outbound_payload=primary_evidence,
+                    outbound_payloads=tuple(outbound_payloads),
+                    broker_decision=evaluation.decision,
+                    events=events.events,
+                )
             clarification_rounds += 1
             events.emit(
                 WorkflowState.CLOUD_CONTINUE,
@@ -200,14 +251,39 @@ class TrustSplitWorkflow:
         )
         if verification.status is VerificationStatus.REVISION_REQUIRED:
             feedback = verification.safe_feedback or "Preserve mandatory local constraints."
-            revision = self._broker.evaluate(
-                self._verifier.revision_proposal(feedback, context.project_id)
+            revision_proposal = self._verifier.revision_proposal(feedback, context.project_id)
+            revision_context = (
+                BrokerContext(
+                    session_id=session_id,
+                    trust_zone_id=trust_zone_id,
+                    dimension="architecture",
+                    base_weight=10,
+                )
+                if session_id is not None
+                else None
             )
+            revision = self._broker.evaluate(revision_proposal, revision_context)
+            if not revision.approved_disclosures:
+                events.emit(
+                    WorkflowState.LOCAL_SYNTHESIS,
+                    "local_ai",
+                    "Revision disclosure denied; completed locally.",
+                )
+                final_answer = self._verifier.local_fallback()
+                events.emit(WorkflowState.FINAL, "local_ai", "Final local-only answer ready.")
+                return WorkflowResult(
+                    final_answer=final_answer,
+                    outbound_payload=primary_evidence,
+                    outbound_payloads=tuple(outbound_payloads),
+                    broker_decision=evaluation.decision,
+                    events=events.events,
+                )
             revision_payload = ApprovedCloudPayload(
                 provider_name=self._cloud_provider.provider_name,
                 trust_zone_id=trust_zone_id,
                 disclosures=revision.approved_disclosures,
             )
+            outbound_payloads.append(CloudPayloadEvidence.from_approved(revision_payload))
             events.emit(
                 WorkflowState.CLOUD_REVISION,
                 "privacy_broker",
@@ -234,7 +310,8 @@ class TrustSplitWorkflow:
         events.emit(WorkflowState.FINAL, "local_ai", "Final locally verified answer ready.")
         return WorkflowResult(
             final_answer=final_answer,
-            outbound_payload=CloudPayloadEvidence.from_approved(payload),
+            outbound_payload=primary_evidence,
+            outbound_payloads=tuple(outbound_payloads),
             broker_decision=evaluation.decision,
             events=events.events,
         )

@@ -55,6 +55,31 @@ async def test_policy_api_returns_and_validates_non_secret_configuration() -> No
 
 
 @pytest.mark.anyio
+async def test_policy_update_changes_subsequent_broker_decisions() -> None:
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        policy = (await client.get("/api/policy")).json()
+        policy["trust_zones"]["personal_cloud"]["generalise_at"] = 20
+        updated = await client.put("/api/policy", json=policy)
+        session = await client.post(
+            "/api/sessions",
+            json={
+                "employee_id": "policy-auditor",
+                "mode": "trustsplit",
+                "trust_zone_id": "personal_cloud",
+                "project_id": "project-aurora",
+            },
+        )
+        result = await client.post(
+            f"/api/sessions/{session.json()['id']}/run",
+            json={"prompt": "Review synthetic Project Aurora"},
+        )
+
+    assert updated.status_code == 200
+    assert result.json()["broker_decision"]["decision"] == "generalise"
+
+
+@pytest.mark.anyio
 async def test_ledger_api_returns_only_safe_representations(tmp_path: Path) -> None:
     repository = ExposureRepository(f"sqlite:///{tmp_path / 'ledger.db'}")
     repository.initialize()

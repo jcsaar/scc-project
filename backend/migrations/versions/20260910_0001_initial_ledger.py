@@ -39,9 +39,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("trust_zone_id", "protected_entity_id", "semantic_key"),
     )
-    op.create_index(
-        "ix_exposure_claims_trust_zone_id", "exposure_claims", ["trust_zone_id"]
-    )
+    op.create_index("ix_exposure_claims_trust_zone_id", "exposure_claims", ["trust_zone_id"])
     op.create_index(
         "ix_exposure_claims_protected_entity_id",
         "exposure_claims",

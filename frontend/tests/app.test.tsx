@@ -17,7 +17,7 @@ describe("TrustSplit dashboard", () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole("button", { name: "Privacy Pipeline" }));
-    expect(screen.getByText("15k–20k TPS")).toBeInTheDocument();
+    expect(screen.getByText(/15k–20k TPS/)).toBeInTheDocument();
     expect(screen.getByText("GENERALISE")).toBeInTheDocument();
     expect(screen.queryByText("18,274")).not.toBeInTheDocument();
   });
@@ -26,7 +26,7 @@ describe("TrustSplit dashboard", () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole("button", { name: "Privacy Dashboard" }));
-    expect(screen.getByText("42 / 60")).toBeInTheDocument();
+    expect(screen.getByText("82 / 100")).toBeInTheDocument();
     expect(screen.getByText("Reconstruction score")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Exposure Ledger" }));
     expect(screen.getByText("throughput.capacity")).toBeInTheDocument();

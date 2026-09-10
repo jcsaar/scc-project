@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Response, status
@@ -50,7 +51,7 @@ def create_sessions_router(
     credential_vault: CredentialVault,
     demo_runner: DemoModeRunner | None = None,
     exposure_repository: ExposureRepository | None = None,
-    policy: Policy | None = None,
+    policy_provider: Callable[[], Policy] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     sessions: dict[str, SessionResponse] = {}
@@ -59,8 +60,8 @@ def create_sessions_router(
     @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
     def create_session(request: CreateSessionRequest) -> SessionResponse:
         session = SessionResponse(id=str(uuid4()), **request.model_dump())
-        if exposure_repository is not None and policy is not None:
-            zone = policy.trust_zones.get(session.trust_zone_id)
+        if exposure_repository is not None and policy_provider is not None:
+            zone = policy_provider().trust_zones.get(session.trust_zone_id)
             if zone is None:
                 raise HTTPException(status_code=422, detail="Unknown provider trust zone")
             exposure_repository.register_session(
@@ -85,6 +86,12 @@ def create_sessions_router(
             trust_zone_id=session.trust_zone_id,
             session_id=session.id,
         )
+        if exposure_repository is not None:
+            result = result.model_copy(
+                update={
+                    "session_budget_remaining": exposure_repository.remaining_budget(session.id)
+                }
+            )
         results[session_id] = result
         return result
 

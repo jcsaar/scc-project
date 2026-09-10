@@ -39,10 +39,46 @@ export interface WorkflowResult {
       fact_keys: string[];
     }>;
   } | null;
+  outbound_payloads?: Array<{
+    provider_name: string;
+    trust_zone_id: string;
+    disclosures: Array<{
+      text: string;
+      category: string;
+      precision: string;
+      fact_keys: string[];
+    }>;
+  }>;
   broker_decision: BrokerDecision;
   events: WorkflowEvent[];
   mode?: DemoMode;
   exposure_summary?: string;
+  session_budget_remaining?: number | null;
+}
+
+export interface LedgerClaim {
+  trust_zone_id: string;
+  protected_entity_id: string;
+  dimension: string;
+  semantic_key: string;
+  category: string;
+  safe_representation: string;
+  precision: string;
+  base_weight: number;
+}
+
+export interface TrustZonePolicy {
+  classification: string;
+  disclosure_budget: number;
+  retention_days: number | null;
+  generalise_at: number;
+  deny_at: number;
+}
+
+export interface Policy {
+  max_clarification_rounds: number;
+  hard_block_categories: string[];
+  trust_zones: Record<string, TrustZonePolicy>;
 }
 
 export interface ScenarioResult {

@@ -23,6 +23,7 @@ TRUSTSPLIT_DATABASE_URL=sqlite:///trustsplit.db \
   "$PROJECT_ROOT/backend/.venv/bin/alembic" upgrade head \
   >"$RUN_LOGS/migration.log" 2>&1
 TRUSTSPLIT_DATABASE_URL=sqlite:///trustsplit.db \
+  TRUSTSPLIT_SCHEMA_MANAGED=alembic \
   "$PROJECT_ROOT/backend/.venv/bin/python" -m uvicorn app.main:app \
   --host 127.0.0.1 --port "$BACKEND_PORT" >"$RUN_LOGS/backend.log" 2>&1 &
 BACKEND_PID=$!

@@ -1,4 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 from app.domain.disclosures import DecisionKind, DisclosureProposal, PrecisionLevel
 from app.domain.policies import PolicyLoader
@@ -120,3 +122,40 @@ def test_repeated_fact_has_zero_delta_and_does_not_duplicate_claim(tmp_path: Pat
     assert repeated.decision.budget_cost == 0
     assert len(repository.current_claims("personal_cloud", "project-aurora")) == 1
     assert repository.remaining_budget("bob-session") == 60
+
+
+def test_concurrent_disclosures_are_serialized_against_shared_exposure(
+    tmp_path: Path,
+) -> None:
+    repository = ExposureRepository(f"sqlite:///{tmp_path / 'ledger.db'}")
+    repository.initialize()
+    repository.register_session("alice-session", "alice", "personal_cloud", 60)
+    repository.register_session("bob-session", "bob", "personal_cloud", 60)
+    broker = PrivacyBroker(
+        exposure_repository=repository,
+        policy=PolicyLoader.load(POLICY),
+        risk_engine=RiskEngine(),
+    )
+    barrier = Barrier(2)
+
+    def evaluate(session_id: str, fact_key: str):
+        barrier.wait()
+        return broker.evaluate(
+            proposal(fact_key, "identity.profile", PrecisionLevel.EXACT),
+            BrokerContext(session_id, "personal_cloud", "customer_identity", 60),
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = (
+            pool.submit(evaluate, "alice-session", "country"),
+            pool.submit(evaluate, "bob-session", "industry"),
+        )
+        evaluations = tuple(future.result() for future in futures)
+
+    assert {item.decision.decision for item in evaluations} == {
+        DecisionKind.GENERALISE,
+        DecisionKind.DENY,
+    }
+    claims = repository.current_claims("personal_cloud", "project-aurora")
+    assert len(claims) == 1
+    assert claims[0].precision == PrecisionLevel.APPROXIMATE.value

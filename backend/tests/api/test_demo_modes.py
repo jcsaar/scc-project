@@ -44,7 +44,10 @@ async def test_comparison_modes_report_truthful_exposure() -> None:
 
 @pytest.mark.anyio
 async def test_repeatable_demo_scenarios_reach_expected_decisions() -> None:
-    transport = httpx.ASGITransport(app=create_app())
+    from app.ledger.repository import ExposureRepository
+
+    repository = ExposureRepository("sqlite://")
+    transport = httpx.ASGITransport(app=create_app(exposure_repository=repository))
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         listing = await client.get("/api/demo/scenarios")
         mosaic = await client.post("/api/demo/scenarios/mosaic/run")
@@ -63,3 +66,4 @@ async def test_repeatable_demo_scenarios_reach_expected_decisions() -> None:
     ]
     assert malicious.json()["steps"][-1]["decision"] == "deny"
     assert malicious.json()["steps"][-1]["risk_after"] >= 70
+    assert repository.current_claims("personal_cloud", mosaic.json()["protected_entity_id"])
